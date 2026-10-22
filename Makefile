@@ -116,7 +116,10 @@ pipeline-databricks: ## Deploy bundle, upload NDJSON, run the job on serverless,
 # --- core service, generation, compliance (Phase 3) ----------------------------
 N ?= 100
 
-.PHONY: prompts-register serve eval-rules
+.PHONY: prompts-register serve eval-rules eval-voice
+eval-voice: ## Round-trip TTS->STT WER eval incl. name WER before/after overrides (MLflow)
+	$(UV) python -m caregap.evals.voice
+
 eval-rules: ## Rule-based compliance eval on N members (default 100), logged to MLflow
 	$(UV) python -m caregap.evals.rules -n $(N)
 
@@ -131,11 +134,9 @@ define todo
 	@echo "make $@: not implemented yet ($(1))"; exit 1
 endef
 
-.PHONY: eval eval-voice run-campaign dashboard
+.PHONY: eval run-campaign dashboard
 eval: ## [Phase 8] Full eval suite
 	$(call todo,Phase 8)
-eval-voice: ## [Phase 4] TTS round-trip WER eval
-	$(call todo,Phase 4)
 run-campaign: ## [Phase 5] End-to-end campaign run
 	$(call todo,Phase 5)
 dashboard: ## [Phase 10] Streamlit dashboard

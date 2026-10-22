@@ -5,7 +5,7 @@
 | # | Phase | Status |
 |---|-------|--------|
 | 0 | Scaffold | Approved |
-| 1 | Synthetic data | In review |
+| 1 | Synthetic data | Approved |
 | 2 | Databricks pipeline + gap detection | Not started |
 | 3 | Core service, generation, compliance | Not started |
 | 4 | Voice (TTS + round trip) | Not started |
@@ -33,8 +33,8 @@
 - [x] Loader (stable IDs, idempotent), bulk export to NDJSON, validator + manifest
 - [x] `make seed`, `make seed-verify`, `make reset-fhir`
 - [x] Full-size `seed-verify` run: two runs from empty, identical content digest
-- [ ] Edge cases reviewed
-- [ ] Approved
+- [x] Edge cases reviewed (definitions accepted as written)
+- [x] Approved (2026-10-22)
 
 ## Decisions log
 | Date | Decision | Why |
@@ -57,8 +57,7 @@
 | 2026-10-22 | HAPI default (distroless) image, using its bundled `HealthCheck` probe | The `-tomcat` variant cannot unpack its WAR as non-root and took more than 14 min without ever becoming healthy; the default image is healthy in about 35 s. |
 
 ## Open questions
-- Edge-case expectations in `fixtures/edge_cases/members.yaml` need your review, including
-  the working measure definitions in its header.
+- (Resolved) Edge-case expectations and measure definitions reviewed and accepted.
 - Statin prevalence is high in Synthea (738 of 2,000 members, 37%). Fine for testing; not
   representative of a real plan.
 - Claude prices in `src/caregap/cost/pricing.py` were last checked 2026-10-06. Re-check before Phase 11.

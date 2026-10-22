@@ -50,3 +50,30 @@ CREATE TABLE IF NOT EXISTS care_gaps (
 
 CREATE INDEX IF NOT EXISTS care_gaps_open_idx
     ON care_gaps (measurement_year, measure) WHERE status = 'gap';
+
+-- Generated outreach scripts, with every attempt and its compliance result.
+-- status: compliant | needs_review (generation) -> approved | rejected (human review).
+CREATE TABLE IF NOT EXISTS outreach_scripts (
+    id                BIGSERIAL PRIMARY KEY,
+    member_id         TEXT NOT NULL REFERENCES members (member_id),
+    measurement_year  INTEGER NOT NULL,
+    measures          TEXT[] NOT NULL,
+    status            TEXT NOT NULL
+                      CHECK (status IN ('compliant', 'needs_review', 'approved', 'rejected')),
+    script            TEXT NOT NULL,
+    violations        JSONB NOT NULL DEFAULT '[]',
+    attempts          JSONB NOT NULL,
+    prompt_versions   JSONB NOT NULL,
+    provider          TEXT NOT NULL,
+    model             TEXT NOT NULL,
+    input_tokens      INTEGER NOT NULL,
+    output_tokens     INTEGER NOT NULL,
+    latency_ms        INTEGER NOT NULL,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    reviewed_at       TIMESTAMPTZ,
+    reviewer          TEXT,
+    review_note       TEXT
+);
+
+CREATE INDEX IF NOT EXISTS outreach_scripts_review_idx
+    ON outreach_scripts (created_at) WHERE status = 'needs_review';

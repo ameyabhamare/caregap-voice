@@ -3,12 +3,15 @@
 Conventions and context for working on CareGap Voice. Keep this short and current.
 
 ## Working agreement
+- The owner's brief is in `docs/BRIEF.md`; new sessions start from `docs/HANDOVER.md`.
 - Build one phase at a time (see PROGRESS.md). Post a plan, wait for "go"; at the end
   post a phase report and wait for "approved" before starting the next phase.
 - Small commits, one logical change each. Say explicitly if a change makes tests or evals worse.
 - Never add a paid service, new dependency category, or new infrastructure component
   without asking first.
 - Scope guard: smaller and fully tested beats more features. Ask instead of expanding.
+- Watch context size; at a natural boundary, update `docs/HANDOVER.md` so a new session
+  can take over.
 
 ## Hard rules
 - **Synthetic data only.** Never add real PHI. Generated data lives under `data/` (gitignored).

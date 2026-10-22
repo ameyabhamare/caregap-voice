@@ -8,7 +8,7 @@
 | 1 | Synthetic data | Approved |
 | 2 | Databricks pipeline + gap detection | Approved |
 | 3 | Core service, generation, compliance | Approved |
-| 4 | Voice (TTS + round trip) | In review |
+| 4 | Voice (TTS + round trip) | Approved |
 | 5 | Orchestration (n8n + Twilio mock) | Not started |
 | 6 | Multi-customer config | Not started |
 | 7 | RAG callback agent + hallucination analysis | Not started |
@@ -65,10 +65,11 @@
 - [x] Acceptance: `make eval-voice` - script WER 2.3% (100 scripts); medication name accuracy
       54.5% -> 88.6% with overrides (dictionary v2, MLflow run 1431b6ee); plan names 100% both
 - [x] Dictionary v1 made names worse (54.5% -> 36.4%, run e5edd9b9): stress-mark convention bug, fixed
-- [ ] Phase report posted, approved
+- [x] Phase report posted, approved (2026-10-22)
 
 ## Resume here (hand-off between sessions)
-Status: Phase 4 evaluated and reported; waiting for "approved". If a new session
+Status: Phases 0-4 approved. Next: post the Phase 5 plan and wait for "go".
+New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`, and
 get qwen2.5:3b into Ollama (here: fetch manifest + blobs from registry.ollama.ai on the

@@ -101,7 +101,7 @@ def simulate_fills(bundle: Resource, seed: int) -> list[Resource]:
     start, end = window
     orders.sort(key=_authored)
 
-    rng = random.Random(f"{seed}:{patient_id}")
+    rng = random.Random(f"{seed}:{patient_id}")  # noqa: S311 - simulation, not security
     profile = rng.choices(PROFILES, weights=[p.weight for p in PROFILES])[0]
     days_supply = rng.choices((30, 90), weights=(0.7, 0.3))[0]
 

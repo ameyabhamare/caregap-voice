@@ -15,7 +15,7 @@ build/
 !.env.example
 
 # Local data (never commit generated member data or audio)
-data/
+/data/
 *.ndjson
 *.wav
 *.mp3

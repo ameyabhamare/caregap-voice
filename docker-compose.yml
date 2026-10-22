@@ -84,6 +84,18 @@ services:
       retries: 40
       start_period: 60s
 
+  synthea:
+    # Run-once tool, not a service: `docker compose run --rm synthea ...` via `make seed`.
+    # Reuses the HAPI image's Java 21 runtime so no extra image is downloaded (ADR 0003).
+    profiles: ["tools"]
+    image: hapiproject/hapi:v8.10.0-3
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    entrypoint: ["java", "-Xmx2g", "-jar", "/data/cache/synthea-4.0.0.jar", "-c", "/synthea/synthea.properties"]
+    working_dir: /data
+    volumes:
+      - ./data:/data
+      - ./synthea:/synthea:ro
+
 volumes:
   pgdata:
   mlartifacts:

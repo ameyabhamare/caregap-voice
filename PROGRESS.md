@@ -4,7 +4,7 @@
 
 | # | Phase | Status |
 |---|-------|--------|
-| 0 | Scaffold | In review |
+| 0 | Scaffold | Approved |
 | 1 | Synthetic data | Not started |
 | 2 | Databricks pipeline + gap detection | Not started |
 | 3 | Core service, generation, compliance | Not started |
@@ -23,7 +23,7 @@
 - [x] docker compose: Postgres+pgvector, MLflow, Ollama, HAPI FHIR, all with healthchecks
 - [x] Makefile (real targets + placeholders for later phases), pre-commit (ruff, mypy), pytest
 - [x] Cost ledger + budget cap enforcement, with tests
-- [ ] Approved
+- [x] Approved (2026-10-22)
 
 ## Decisions log
 | Date | Decision | Why |

@@ -176,8 +176,7 @@ class CampaignService:
                 " WHERE campaign_id = %s GROUP BY 1 ORDER BY 1"
             )
             gated = conn.execute(
-                "SELECT count(*) AS n FROM campaign_members"
-                " WHERE campaign_id = %s AND human_gate",
+                "SELECT count(*) AS n FROM campaign_members WHERE campaign_id = %s AND human_gate",
                 (campaign_id,),
             ).fetchone()
         return {
@@ -294,8 +293,7 @@ class CampaignService:
             # Serialize the first-N count per campaign.
             conn.execute("SELECT id FROM campaigns WHERE id = %s FOR UPDATE", (campaign_id,))
             gated = conn.execute(
-                "SELECT count(*) AS n FROM campaign_members"
-                " WHERE campaign_id = %s AND human_gate",
+                "SELECT count(*) AS n FROM campaign_members WHERE campaign_id = %s AND human_gate",
                 (campaign_id,),
             ).fetchone()
             hold = gated is not None and gated["n"] < campaign["approval_first_n"]

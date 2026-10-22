@@ -237,9 +237,7 @@ def test_a_completed_call_end_to_end(h: Harness) -> None:
     params = {"CallSid": "CA1", "CallStatus": "in-progress"}
     sig = twilio.signature(TOKEN, tw["form"]["Url"], params)
     path = urlsplit(tw["form"]["Url"]).path
-    r = h.client.post(
-        path, data=params, headers={"X-Twilio-Signature": sig}
-    )
+    r = h.client.post(path, data=params, headers={"X-Twilio-Signature": sig})
     assert r.status_code == 200
     assert "<Play>http://core:8000/scripts/" in r.text
     assert "event=gather" in r.text

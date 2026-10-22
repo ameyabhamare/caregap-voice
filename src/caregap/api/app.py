@@ -349,9 +349,7 @@ def create_app(
     @app.post("/twiml/attempts/{attempt_id}")
     async def twiml(attempt_id: int, request: Request) -> Response:
         params = dict(parse_qsl((await request.body()).decode(), keep_blank_values=True))
-        doc = campaigns.twiml(
-            attempt_id, params, request.headers.get("x-twilio-signature", "")
-        )
+        doc = campaigns.twiml(attempt_id, params, request.headers.get("x-twilio-signature", ""))
         return Response(doc, media_type="application/xml")
 
     @app.post("/telephony/events")

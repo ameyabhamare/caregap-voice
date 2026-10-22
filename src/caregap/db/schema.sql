@@ -182,6 +182,7 @@ CREATE TABLE IF NOT EXISTS telephony_events (
 );
 
 -- Work for people: members asking for a human, calls that failed for good, workflow errors.
+-- Also an outbox: n8n delivers rows with notified_at IS NULL to the notification webhook.
 CREATE TABLE IF NOT EXISTS escalations (
     id               BIGSERIAL PRIMARY KEY,
     kind             TEXT NOT NULL CHECK (kind IN (
@@ -191,8 +192,12 @@ CREATE TABLE IF NOT EXISTS escalations (
     call_attempt_id  BIGINT REFERENCES call_attempts (id),
     detail           TEXT NOT NULL,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    notified_at      TIMESTAMPTZ,
     resolved_at      TIMESTAMPTZ
 );
+
+CREATE INDEX IF NOT EXISTS escalations_outbox_idx ON escalations (id)
+    WHERE notified_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS escalations_open_idx ON escalations (created_at)
     WHERE resolved_at IS NULL;

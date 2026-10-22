@@ -11,26 +11,54 @@ Endpoints:
     POST /reviews/{script_id}        approve or reject a script
     POST /scripts/{script_id}/audio  render a compliant or approved script to speech
     GET  /scripts/{script_id}/audio  the latest rendered WAV
+
+Campaigns (Phase 5; called by n8n, see caregap.campaign.service):
+    POST /campaigns                                   select members for a new campaign
+    GET  /campaigns/{id}                              funnel summary
+    GET  /work                                        prepare/send items that are due now
+    POST /campaigns/{id}/members/{member_id}/prepare  generate the member's script
+    POST /campaigns/{id}/members/{member_id}/send     claim a call; returns the Twilio request
+    POST /attempts/{id}/dispatched                    Twilio accepted the call
+    POST /attempts/{id}/dispatch-failed               Twilio refused the call
+    POST /twiml/attempts/{id}                         TwiML for an answered call (Twilio)
+    POST /telephony/events                            a Twilio callback relayed by n8n
+    POST /alerts                                      a failed n8n workflow
+    GET  /notifications/outbox                        escalations to deliver
+    POST /escalations/{id}/notified                   mark one delivered
+    GET  /escalations                                 open escalations
+    POST /notifications                               local log sink for notifications
 """
 
 from __future__ import annotations
 
-from datetime import date, datetime
+import json
+import logging
+from datetime import UTC, date, datetime
 from typing import Any, Literal
+from urllib.parse import parse_qsl
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
+from caregap.campaign.clock import Clock, build_clock
+from caregap.campaign.service import (
+    CampaignService,
+    EventConflictError,
+    InvalidSignatureError,
+    TelephonyConfig,
+)
 from caregap.config import Settings, get_settings
 from caregap.cost import BudgetExceededError
 from caregap.llm.base import ProviderError
 from caregap.outreach.generate import ScriptGenerator
-from caregap.outreach.profile import DEFAULT_PROFILE
+from caregap.outreach.profile import DEFAULT_PROFILE, OutreachProfile
 from caregap.outreach.store import NotFoundError, OutreachStore, ReviewConflictError
 from caregap.voice.render import AudioRenderer, NotRenderableError, RenderedAudio, latest_audio
 
 DEFAULT_YEAR = 2025
+
+log = logging.getLogger(__name__)
 
 
 class GapOut(BaseModel):
@@ -84,6 +112,41 @@ class AudioOut(BaseModel):
     url: str
 
 
+class CampaignRequest(BaseModel):
+    name: str = "campaign"
+    size: int = Field(default=20, ge=1, le=5000)
+    measurement_year: int = DEFAULT_YEAR
+    #: Overrides the profile's retry delay (the demo uses 1 minute).
+    retry_delay_minutes: int | None = Field(default=None, ge=0)
+
+
+class DispatchedRequest(BaseModel):
+    call_sid: str = Field(min_length=1)
+
+
+class DispatchFailedRequest(BaseModel):
+    error: str = "unknown error"
+
+
+class TelephonyEvent(BaseModel):
+    """A Twilio callback as n8n received it: query string, form body, signature header."""
+
+    query: dict[str, str]
+    body: dict[str, str]
+    signature: str = ""
+
+
+class AlertRequest(BaseModel):
+    workflow: str
+    node: str | None = None
+    message: str
+    execution: str | None = None
+
+
+class Notification(BaseModel):
+    text: str
+
+
 def _audio_out(a: RenderedAudio) -> AudioOut:
     return AudioOut(**{**vars(a), "url": f"/scripts/{a.script_id}/audio"})
 
@@ -98,6 +161,8 @@ def create_app(
     store: OutreachStore | None = None,
     generator: ScriptGenerator | None = None,
     renderer: AudioRenderer | None = None,
+    clock: Clock | None = None,
+    profile: OutreachProfile = DEFAULT_PROFILE,
 ) -> FastAPI:
     settings = settings or get_settings()
     store = store or OutreachStore(settings.database_url)
@@ -111,7 +176,7 @@ def create_app(
         generator = ScriptGenerator(
             client,
             MlflowPromptStore(settings.mlflow_tracking_uri),
-            DEFAULT_PROFILE,
+            profile,
             max_output_tokens=max_tokens,
         )
     gen = generator
@@ -134,7 +199,36 @@ def create_app(
             )
         return renderers[0]
 
+    campaigns = CampaignService(
+        settings.database_url,
+        outreach=store,
+        generator=gen,
+        renderer=get_renderer,
+        profile=profile,
+        telephony=TelephonyConfig(
+            public_base_url=settings.public_base_url,
+            callback_url=settings.twilio_callback_url,
+            api_base_url=settings.twilio_api_base_url,
+            account_sid=settings.twilio_account_sid,
+            auth_token=settings.twilio_auth_token.get_secret_value(),
+            from_number=settings.twilio_from_number,
+        ),
+        clock=clock or build_clock(settings.campaign_clock),
+    )
+
     app = FastAPI(title="CareGap Voice core service", version="0.1.0")
+
+    @app.exception_handler(NotFoundError)
+    def not_found(_: Request, exc: NotFoundError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=404)
+
+    @app.exception_handler(InvalidSignatureError)
+    def bad_signature(_: Request, exc: InvalidSignatureError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=403)
+
+    @app.exception_handler(EventConflictError)
+    def conflict(_: Request, exc: EventConflictError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=409)
 
     @app.exception_handler(ProviderError)
     def provider_error(_: Request, exc: ProviderError) -> JSONResponse:
@@ -146,7 +240,12 @@ def create_app(
 
     @app.get("/health")
     def health() -> dict[str, str]:
-        return {"status": "ok", "provider": gen.client.provider.name, "model": gen.client.model}
+        return {
+            "status": "ok",
+            "provider": gen.client.provider.name,
+            "model": gen.client.model,
+            "clock": campaigns.clock.now().isoformat(),
+        }
 
     @app.get("/members/{member_id}/gaps")
     def member_gaps(member_id: str, year: int = DEFAULT_YEAR) -> list[GapOut]:
@@ -209,5 +308,81 @@ def create_app(
         if audio is None:
             raise HTTPException(404, f"no audio rendered for script {script_id}")
         return FileResponse(audio.path, media_type="audio/wav")
+
+    # --- campaigns ---------------------------------------------------------------
+
+    @app.post("/campaigns", status_code=201)
+    def create_campaign(req: CampaignRequest) -> dict[str, Any]:
+        return campaigns.create(
+            name=req.name,
+            size=req.size,
+            measurement_year=req.measurement_year,
+            retry_delay_minutes=req.retry_delay_minutes,
+        )
+
+    @app.get("/campaigns/{campaign_id}")
+    def campaign_summary(campaign_id: int) -> dict[str, Any]:
+        return campaigns.summary(campaign_id)
+
+    @app.get("/work")
+    def work(prepare_limit: int = 4, send_limit: int = 20) -> dict[str, Any]:
+        return {"items": campaigns.work(prepare_limit=prepare_limit, send_limit=send_limit)}
+
+    @app.post("/campaigns/{campaign_id}/members/{member_id}/prepare")
+    def prepare(campaign_id: int, member_id: str) -> dict[str, Any]:
+        return campaigns.prepare(campaign_id, member_id)
+
+    @app.post("/campaigns/{campaign_id}/members/{member_id}/send")
+    def send(campaign_id: int, member_id: str) -> dict[str, Any]:
+        return campaigns.send(campaign_id, member_id)
+
+    @app.post("/attempts/{attempt_id}/dispatched")
+    def dispatched(attempt_id: int, req: DispatchedRequest) -> dict[str, str]:
+        campaigns.dispatched(attempt_id, req.call_sid)
+        return {"status": "ok"}
+
+    @app.post("/attempts/{attempt_id}/dispatch-failed")
+    def dispatch_failed(attempt_id: int, req: DispatchFailedRequest) -> dict[str, str]:
+        campaigns.dispatch_failed(attempt_id, req.error)
+        return {"status": "ok"}
+
+    @app.post("/twiml/attempts/{attempt_id}")
+    async def twiml(attempt_id: int, request: Request) -> Response:
+        params = dict(parse_qsl((await request.body()).decode(), keep_blank_values=True))
+        doc = campaigns.twiml(
+            attempt_id, params, request.headers.get("x-twilio-signature", "")
+        )
+        return Response(doc, media_type="application/xml")
+
+    @app.post("/telephony/events")
+    def telephony_event(ev: TelephonyEvent) -> dict[str, str | None]:
+        return {"twiml": campaigns.telephony_event(ev.query, ev.body, ev.signature)}
+
+    @app.post("/alerts", status_code=201)
+    def alert(req: AlertRequest) -> dict[str, int]:
+        return {"escalation_id": campaigns.alert(**req.model_dump())}
+
+    @app.get("/notifications/outbox")
+    def outbox(limit: int = 50) -> dict[str, Any]:
+        return {"url": cfg.notify_webhook_url, "items": campaigns.outbox(limit)}
+
+    @app.post("/escalations/{escalation_id}/notified")
+    def notified(escalation_id: int) -> dict[str, str]:
+        campaigns.mark_notified(escalation_id)
+        return {"status": "ok"}
+
+    @app.get("/escalations")
+    def escalations(open_only: bool = True) -> list[dict[str, Any]]:
+        return campaigns.escalations(open_only=open_only)
+
+    @app.post("/notifications", status_code=202)
+    def notification_sink(n: Notification) -> dict[str, str]:
+        """Stands in for a Slack incoming webhook: appends to data/notifications.log."""
+        cfg.data_dir.mkdir(parents=True, exist_ok=True)
+        line = {"received_at": datetime.now(UTC).isoformat(), "text": n.text}
+        with (cfg.data_dir / "notifications.log").open("a") as f:
+            f.write(json.dumps(line) + "\n")
+        log.warning("notification: %s", n.text)
+        return {"status": "accepted"}
 
     return app

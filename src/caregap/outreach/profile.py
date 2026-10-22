@@ -27,6 +27,10 @@ class CampaignPolicy(BaseModel):
     retry_delay_minutes: int = Field(ge=0)
     #: The first N messages of every campaign wait for a human, even when compliant.
     approval_first_n: int = Field(ge=0)
+    #: Spoken by the telephony provider after the message (not rendered by our TTS).
+    goodbye: str = "Thank you for your time. Goodbye."
+    opt_out_confirmation: str = "You will not receive more of these calls. Goodbye."
+    callback_confirmation: str = "Thank you. Someone from our team will call you back. Goodbye."
 
     @model_validator(mode="after")
     def _check(self) -> CampaignPolicy:

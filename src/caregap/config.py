@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -38,6 +39,28 @@ class Settings(BaseSettings):
     tts_voice: str = "af_heart"
     tts_pronunciation_overrides: bool = True
     stt_model: str = "small.en"
+
+    # Campaigns and telephony (Phase 5). Defaults are for running on the host; compose
+    # overrides the URLs with service names. See .env.example.
+    #: Start the service clock at this instant (with offset) and let it run; demo only.
+    campaign_clock: datetime | None = None
+    #: The core service as Twilio reaches it (TwiML and audio URLs).
+    public_base_url: str = "http://localhost:8000"
+    #: Where Twilio sends call status and DTMF callbacks (the n8n webhook).
+    twilio_callback_url: str = "http://localhost:5678/webhook/twilio-events"
+    #: Twilio REST API base; the local mock by default.
+    twilio_api_base_url: str = "http://localhost:8100"
+    twilio_account_sid: str = "ACmock0000000000000000000000000000"
+    twilio_auth_token: SecretStr = SecretStr("mock-auth-token")
+    twilio_from_number: str = "+15550100000"
+    #: Slack-compatible incoming webhook for alerts and escalations ({"text": ...}).
+    #: Defaults to the core service's own log sink.
+    notify_webhook_url: str = "http://localhost:8000/notifications"
+
+    @field_validator("campaign_clock", mode="before")
+    @classmethod
+    def _empty_clock_is_unset(cls, v: object) -> object:
+        return None if v == "" else v
 
 
 @lru_cache

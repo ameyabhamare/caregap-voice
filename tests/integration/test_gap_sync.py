@@ -48,7 +48,7 @@ def _state(pg_url: str) -> tuple[list[Any], list[Any]]:
 @pytest.fixture
 def clean_db(pg_url: str) -> str:
     with psycopg.connect(pg_url) as conn:
-        conn.execute("TRUNCATE script_audio, outreach_scripts, care_gaps, members")
+        conn.execute("TRUNCATE script_audio, outreach_scripts, care_gaps, members CASCADE")
     return pg_url
 
 

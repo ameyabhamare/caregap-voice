@@ -32,7 +32,7 @@ BAD = "Hi Ava, about your diabetes."
 @pytest.fixture
 def db(pg_url: str) -> str:
     with psycopg.connect(pg_url) as conn:
-        conn.execute("TRUNCATE script_audio, outreach_scripts, care_gaps, members")
+        conn.execute("TRUNCATE script_audio, outreach_scripts, care_gaps, members CASCADE")
         conn.execute(
             "INSERT INTO members (member_id, given_name, family_name, birth_date, phone)"
             " VALUES ('m-gap', 'Ava', 'Welch179', '1955-04-02', '555-0142'),"
@@ -60,11 +60,13 @@ def _client(db: str, replies: Any) -> tuple[TestClient, FakeProvider]:
 
 def test_health_and_gaps(db: str) -> None:
     client, _ = _client(db, [])
-    assert client.get("/health").json() == {
+    health = client.get("/health").json()
+    assert {k: health[k] for k in ("status", "provider", "model")} == {
         "status": "ok",
         "provider": "ollama",
         "model": "fake-model",
     }
+    assert "clock" in health
     gaps = client.get("/members/m-gap/gaps").json()
     assert [(g["measure"], g["status"]) for g in gaps] == [("awv", "gap"), ("statin", "met")]
     assert client.get("/members/nobody/gaps").status_code == 404

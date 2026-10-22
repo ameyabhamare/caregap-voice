@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Local data (never commit generated member data or audio)
+data/
+*.ndjson
+*.wav
+*.mp3
+mlruns/
+mlartifacts/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store

@@ -114,7 +114,12 @@ pipeline-databricks: ## Deploy bundle, upload NDJSON, run the job on serverless,
 	$(UV) python -m caregap.gaps.sync data/lake/snapshot-databricks
 
 # --- core service, generation, compliance (Phase 3) ----------------------------
-.PHONY: prompts-register serve
+N ?= 100
+
+.PHONY: prompts-register serve eval-rules
+eval-rules: ## Rule-based compliance eval on N members (default 100), logged to MLflow
+	$(UV) python -m caregap.evals.rules -n $(N)
+
 serve: ## Run the core service API on http://localhost:8000
 	$(UV) uvicorn --factory caregap.api.app:create_app --host 127.0.0.1 --port 8000
 
@@ -127,8 +132,8 @@ define todo
 endef
 
 .PHONY: eval eval-voice run-campaign dashboard
-eval: ## [Phase 3/8] Run eval suite
-	$(call todo,Phase 3)
+eval: ## [Phase 8] Full eval suite
+	$(call todo,Phase 8)
 eval-voice: ## [Phase 4] TTS round-trip WER eval
 	$(call todo,Phase 4)
 run-campaign: ## [Phase 5] End-to-end campaign run

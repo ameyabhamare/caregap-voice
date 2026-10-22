@@ -32,11 +32,16 @@ dev = [
 pipeline = [
     "pyspark==4.0.4",
 ]
+voice = [
+    "faster-whisper==1.2.1",
+    "kokoro-onnx==0.6.1",
+]
 
 [tool.uv]
 # The pipeline group (PySpark) is installed for development and tests; the core service
-# image can skip it with `uv sync --no-group pipeline`.
-default-groups = ["dev", "pipeline"]
+# image can skip it with `uv sync --no-group pipeline`. The voice group (TTS/STT runtimes)
+# is installed by default too; CI tests use fakes and never load the models.
+default-groups = ["dev", "pipeline", "voice"]
 
 [build-system]
 requires = ["hatchling"]
@@ -65,7 +70,8 @@ plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra --strict-markers -m 'not integration'"
+addopts = "-ra --strict-markers -m 'not integration and not models'"
 markers = [
     "integration: needs running docker compose services (run via `make test-all`)",
+    "models: loads real TTS/STT model files from data/cache (run via `make test-all`)",
 ]

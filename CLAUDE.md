@@ -27,8 +27,11 @@ src/caregap/          Python package
   db/schema.sql       idempotent app schema (also mounted as a Postgres init script)
   data/               Synthea run, statin fill simulator, edge-case builder, FHIR load,
                       bulk export, export validation (`python -m caregap.data <step>`)
+  pipeline/           PySpark medallion pipeline + gap detection (local Parquet or UC Delta)
+  gaps/sync.py        gold snapshot -> Postgres members/care_gaps
 fixtures/edge_cases/  hand-built edge-case members with expected gap outcomes
 synthea/              Synthea properties (run parameters are pinned in caregap/data/synthea.py)
+databricks.yml        Databricks Asset Bundle: serverless job running the same pipeline
 tests/unit/           no services needed; ledger contract tests also run against Postgres
 tests/integration/    need `make up`; marked `integration`
 docker/               per-service build context and init files
@@ -44,6 +47,8 @@ docs/adr/             architecture decision records
   `data/export/`, validates and writes `manifest.json`. `SEED_POPULATION=20` for a quick run.
 - `make seed-verify` seeds twice from an empty FHIR server and compares content digests.
 - `make reset-fhir` empties the HAPI database.
+- `make pipeline` (local PySpark) then `make sync-gaps`. `make pipeline-databricks` runs the
+  job on Databricks serverless and syncs its output instead.
 
 ## Conventions
 - Python 3.12, uv, ruff (line length 100), mypy strict on `src` and `tests`.
@@ -55,5 +60,7 @@ docs/adr/             architecture decision records
 - Clinical codes live in `caregap/data/codes.py`; reuse them, don't re-type codes.
 - Resources we create ourselves carry a `urn:caregap:synthetic` meta tag
   (`edge-case` or `simulated-fill`).
+- Pipeline code uses the DataFrame API and Spark SQL only (no RDDs/SparkContext), so it
+  runs on Databricks serverless. Local PySpark stays pinned to serverless environment 4.
 - Edge-case expectations must follow from the definitions in the YAML header; the oracle
   test enforces it. Changing a definition means updating the header, the oracle and Phase 2.

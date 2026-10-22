@@ -8,7 +8,7 @@ questions from plan benefit documents.
 > **All data is synthetic.** Members are generated with [Synthea](https://synthetichealth.github.io/synthea/).
 > There is no real PHI anywhere in this repository, its fixtures, or its demo recordings.
 
-**Status:** Phase 1 (synthetic data). See [PROGRESS.md](PROGRESS.md).
+**Status:** Phase 2 (pipeline and gap detection). See [PROGRESS.md](PROGRESS.md).
 
 ## Design goals
 
@@ -21,12 +21,15 @@ questions from plan benefit documents.
 
 ## Quick start
 
-Requires Docker with Compose v2, [uv](https://docs.astral.sh/uv/), and GNU make.
+Requires Docker with Compose v2, [uv](https://docs.astral.sh/uv/), GNU make, and Java 17+
+(for the PySpark pipeline and its tests).
 
 ```bash
 make install      # Python deps + pre-commit hooks
 make up           # start Postgres+pgvector, MLflow, Ollama, HAPI FHIR; waits until healthy
 make seed         # ~2,000 synthetic members + 23 edge cases -> HAPI FHIR -> NDJSON export
+make pipeline     # bronze/silver/gold + care-gap detection with local PySpark
+make sync-gaps    # load members and care gaps into Postgres
 make pull-model   # optional now, needed from Phase 3: pulls qwen2.5:3b (~2 GB)
 make check        # lint, typecheck, unit tests
 make test-all     # adds integration tests against the running stack
@@ -49,6 +52,22 @@ with known expected gaps ([fixtures/edge_cases/members.yaml](fixtures/edge_cases
 loads them into HAPI FHIR, bulk-exports NDJSON to `data/export/` and validates the export.
 `make seed-verify` proves the run is reproducible. Use `SEED_POPULATION=20 make seed` for
 a quick run. See [ADR 0003](docs/adr/0003-synthetic-data-pipeline.md).
+
+### Gap detection
+
+`make pipeline` runs the medallion pipeline locally (Parquet under `data/lake/`) and
+detects three care gaps for measurement year 2025: annual wellness visit, diabetic eye
+exam and statin adherence (PDC). `make sync-gaps` loads members and gaps into Postgres
+(`members`, `care_gaps`). The first `uv sync` builds PySpark from source, which takes a
+few minutes.
+
+The same code runs on **Databricks Free Edition** as a serverless job writing Delta
+tables in Unity Catalog ([ADR 0004](docs/adr/0004-gap-detection-pipeline.md)):
+
+1. Install the [Databricks CLI](https://docs.databricks.com/dev-tools/cli/install.html).
+2. Set `DATABRICKS_HOST` and `DATABRICKS_TOKEN` in `.env` (or use a CLI profile).
+3. `make pipeline-databricks`: deploys the bundle, uploads the NDJSON to a volume, runs
+   the job, downloads the gold snapshot and syncs it into Postgres.
 
 > Upgrading from Phase 0: HAPI moved from H2 to Postgres. Run `make nuke && make up` once
 > so Postgres creates the `hapi` database.

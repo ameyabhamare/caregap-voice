@@ -6,7 +6,7 @@
 |---|-------|--------|
 | 0 | Scaffold | Approved |
 | 1 | Synthetic data | Approved |
-| 2 | Databricks pipeline + gap detection | Not started |
+| 2 | Databricks pipeline + gap detection | In review |
 | 3 | Core service, generation, compliance | Not started |
 | 4 | Voice (TTS + round trip) | Not started |
 | 5 | Orchestration (n8n + Twilio mock) | Not started |
@@ -36,6 +36,15 @@
 - [x] Edge cases reviewed (definitions accepted as written)
 - [x] Approved (2026-10-22)
 
+## Phase 2: Databricks pipeline + gap detection
+- [x] PySpark 4.0.4 pipeline group (matches Databricks serverless environment 4)
+- [x] Bronze (raw NDJSON), silver (typed tables), gold (`member_gaps`, `members`)
+- [x] Gap detection: AWV and eye exam in Spark SQL, statin PDC with window functions
+- [x] Edge-case acceptance: 23 members x 3 measures match; targeted silver/gold tests
+- [x] `members` / `care_gaps` tables and idempotent `make sync-gaps`
+- [x] Databricks Asset Bundle; real run on Free Edition; output identical to local run
+- [ ] Approved
+
 ## Decisions log
 | Date | Decision | Why |
 |------|----------|-----|
@@ -54,9 +63,18 @@
 | 2026-10-22 | Edge cases as reviewable YAML + builder, checked by a reference oracle in tests | Reviewers check definitions and events, not FHIR JSON. Phase 2 must match every expectation. |
 | 2026-10-22 | Loader rewrites creates to `PUT Type/<id>` | Stable IDs, idempotent re-runs, reproducible exports. |
 | 2026-10-22 | Reproducibility = order- and server-metadata-independent content digest | HAPI adds `versionId`/`lastUpdated` and bulk export line order varies. |
+| 2026-10-22 | Pipeline runs locally (default) and on Databricks from one codebase | Fresh-clone acceptance and CI can't require a Databricks account. Approved in Phase 2 plan. ADR 0004. |
+| 2026-10-22 | Serverless environment version 4 + local pyspark 4.0.4 | Same Python (3.12) and Spark (4.0) in both places. |
+| 2026-10-22 | Bundle runs the project wheel via `python_wheel_task` | Standard packaging; pyspark is provided by serverless, not a wheel dependency. |
+| 2026-10-22 | Gold-to-Postgres via JSON-lines snapshot | No Spark, Arrow or SQL-warehouse client in the sync path; gold is ~6k rows. |
+| 2026-10-22 | Sync replaces a whole measurement year in one transaction | Idempotent and readers never see a partial year. |
+| 2026-10-22 | `members` holds name, phone and language (synthetic) | Needed for outreach. Approved in Phase 2 plan; PHI allowlist for prompts comes in Phase 3. |
 | 2026-10-22 | HAPI default (distroless) image, using its bundled `HealthCheck` probe | The `-tomcat` variant cannot unpack its WAR as non-root and took more than 14 min without ever becoming healthy; the default image is healthy in about 35 s. |
 
 ## Open questions
+- `members` rows are upserted, never deleted, by the sync: a member who disappears from
+  gold keeps their registry row (their care gaps for the year are removed). Revisit with
+  outreach history in Phase 5.
 - (Resolved) Edge-case expectations and measure definitions reviewed and accepted.
 - Statin prevalence is high in Synthea (738 of 2,000 members, 37%). Fine for testing; not
   representative of a real plan.

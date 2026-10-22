@@ -60,3 +60,12 @@ def test_procedure_falls_back_to_performed_datetime(spark: SparkSession) -> None
     proc["performedDateTime"] = "2025-07-07T12:00:00+00:00"
     (row,) = silver.procedures(fhir.bronze(spark, [proc])).collect()
     assert row["performed_date"] == dt.date(2025, 7, 7)
+
+
+def test_members_strip_synthea_name_digits(spark: SparkSession) -> None:
+    patient = fhir.patient(
+        "p1", "1950-01-02",
+        name=[{"use": "official", "family": "O'Connell601", "given": ["Mickey576"]}],
+    )  # fmt: skip
+    (row,) = silver.members(fhir.bronze(spark, [patient])).collect()
+    assert (row["given_name"], row["family_name"]) == ("Mickey", "O'Connell")

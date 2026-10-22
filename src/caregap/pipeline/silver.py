@@ -55,6 +55,10 @@ def _first_code(concept: str) -> Column:
     return F.col(f"{concept}.coding")[0]["code"]
 
 
+def _strip_digits(name: Column) -> Column:
+    return F.nullif(F.trim(F.regexp_replace(name, "[0-9]+", "")), F.lit(""))
+
+
 def members(bronze: DataFrame) -> DataFrame:
     p = _parsed(bronze, "Patient")
     official = F.coalesce(
@@ -64,8 +68,9 @@ def members(bronze: DataFrame) -> DataFrame:
     language = F.col("r.communication")[0]["language"]["coding"][0]["code"]
     return p.select(
         F.col("r.id").alias("member_id"),
-        official["given"][0].alias("given_name"),
-        official["family"].alias("family_name"),
+        # Synthea appends digits to names ("Mickey576"); a voice would read them aloud.
+        _strip_digits(official["given"][0]).alias("given_name"),
+        _strip_digits(official["family"]).alias("family_name"),
         F.col("r.gender").alias("gender"),
         _date("r.birthDate").alias("birth_date"),
         _date("r.deceasedDateTime").alias("deceased_date"),

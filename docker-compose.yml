@@ -1,0 +1,102 @@
+# Local stack. Every service has a healthcheck; `make up` waits until all are healthy.
+# Ports bind to 127.0.0.1 only. Images are pinned; bump deliberately.
+name: caregap
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-caregap}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-caregap}
+      POSTGRES_DB: ${POSTGRES_DB:-caregap}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Init scripts run once, on an empty data volume, in filename order.
+      - ./docker/postgres/init/01-databases.sql:/docker-entrypoint-initdb.d/01-databases.sql:ro
+      - ./src/caregap/db/schema.sql:/docker-entrypoint-initdb.d/02-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mlflow:
+    build: ./docker/mlflow
+    image: caregap-mlflow:local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      mlflow server
+      --host 0.0.0.0 --port 5000
+      --backend-store-uri postgresql+psycopg://${POSTGRES_USER:-caregap}:${POSTGRES_PASSWORD:-caregap}@postgres:5432/mlflow
+      --artifacts-destination /mlartifacts
+      --serve-artifacts
+      --allowed-hosts localhost,localhost:*,127.0.0.1,127.0.0.1:*,mlflow,mlflow:*
+    ports:
+      - "127.0.0.1:${MLFLOW_PORT:-5000}:5000"
+    volumes:
+      - mlartifacts:/mlartifacts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  ollama:
+    image: ollama/ollama:0.40.6
+    ports:
+      - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  hapi-fhir:
+    image: hapiproject/hapi:v8.10.0-3
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Persistence in the "hapi" database on the shared Postgres (see ADR 0003).
+      spring.datasource.url: jdbc:postgresql://postgres:5432/hapi
+      spring.datasource.username: ${POSTGRES_USER:-caregap}
+      spring.datasource.password: ${POSTGRES_PASSWORD:-caregap}
+      spring.datasource.driverClassName: org.postgresql.Driver
+      spring.jpa.properties.hibernate.dialect: ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgresDialect
+      hapi.fhir.fhir_version: R4
+      hapi.fhir.bulk_export_enabled: "true"
+      # The loader PUTs resources with Synthea's UUIDs so IDs are stable across runs.
+      hapi.fhir.client_id_strategy: ANY
+    ports:
+      - "127.0.0.1:${FHIR_PORT:-8080}:8080"
+    healthcheck:
+      # Distroless image: no shell or curl. It ships this Actuator /health probe.
+      test: ["CMD", "java", "-cp", "/app", "HealthCheck"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 60s
+
+  synthea:
+    # Run-once tool, not a service: `docker compose run --rm synthea ...` via `make seed`.
+    # Reuses the HAPI image's Java 21 runtime so no extra image is downloaded (ADR 0003).
+    profiles: ["tools"]
+    image: hapiproject/hapi:v8.10.0-3
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    entrypoint: ["java", "-Xmx2g", "-jar", "/data/cache/synthea-4.0.0.jar", "-c", "/synthea/synthea.properties"]
+    working_dir: /data
+    volumes:
+      - ./data:/data
+      - ./synthea:/synthea:ro
+
+volumes:
+  pgdata:
+  mlartifacts:
+  ollama:

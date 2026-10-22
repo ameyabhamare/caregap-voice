@@ -21,6 +21,14 @@ dev = [
     "pre-commit>=4.0",
     "types-pyyaml>=6.0",
 ]
+pipeline = [
+    "pyspark==4.0.4",
+]
+
+[tool.uv]
+# The pipeline group (PySpark) is installed for development and tests; the core service
+# image can skip it with `uv sync --no-group pipeline`.
+default-groups = ["dev", "pipeline"]
 
 [build-system]
 requires = ["hatchling"]

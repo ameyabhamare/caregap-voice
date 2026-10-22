@@ -25,6 +25,10 @@ src/caregap/          Python package
   config.py           pydantic-settings, env vars documented in .env.example
   cost/               pricing table + cost ledger with budget cap
   db/schema.sql       idempotent app schema (also mounted as a Postgres init script)
+  data/               Synthea run, statin fill simulator, edge-case builder, FHIR load,
+                      bulk export, export validation (`python -m caregap.data <step>`)
+fixtures/edge_cases/  hand-built edge-case members with expected gap outcomes
+synthea/              Synthea properties (run parameters are pinned in caregap/data/synthea.py)
 tests/unit/           no services needed; ledger contract tests also run against Postgres
 tests/integration/    need `make up`; marked `integration`
 docker/               per-service build context and init files
@@ -36,6 +40,10 @@ docs/adr/             architecture decision records
 - `make check`: ruff, mypy --strict, unit tests. Run before every commit.
 - `make test-all`: unit + integration (fails rather than skips if Postgres is down).
 - `make fmt` auto-fixes lint and formatting.
+- `make seed` generates ~2,000 members + edge cases, loads HAPI, exports NDJSON to
+  `data/export/`, validates and writes `manifest.json`. `SEED_POPULATION=20` for a quick run.
+- `make seed-verify` seeds twice from an empty FHIR server and compares content digests.
+- `make reset-fhir` empties the HAPI database.
 
 ## Conventions
 - Python 3.12, uv, ruff (line length 100), mypy strict on `src` and `tests`.
@@ -44,3 +52,8 @@ docs/adr/             architecture decision records
   (`IF NOT EXISTS`). No migration tool yet; revisit when a schema change needs one.
 - Pin container images and in-container packages to exact versions.
 - New ADR for each key tool choice: `docs/adr/NNNN-title.md`.
+- Clinical codes live in `caregap/data/codes.py`; reuse them, don't re-type codes.
+- Resources we create ourselves carry a `urn:caregap:synthetic` meta tag
+  (`edge-case` or `simulated-fill`).
+- Edge-case expectations must follow from the definitions in the YAML header; the oracle
+  test enforces it. Changing a definition means updating the header, the oracle and Phase 2.

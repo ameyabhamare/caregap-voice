@@ -8,7 +8,7 @@ questions from plan benefit documents.
 > **All data is synthetic.** Members are generated with [Synthea](https://synthetichealth.github.io/synthea/).
 > There is no real PHI anywhere in this repository, its fixtures, or its demo recordings.
 
-**Status:** Phase 0 (scaffold). See [PROGRESS.md](PROGRESS.md).
+**Status:** Phase 1 (synthetic data). See [PROGRESS.md](PROGRESS.md).
 
 ## Design goals
 
@@ -26,6 +26,7 @@ Requires Docker with Compose v2, [uv](https://docs.astral.sh/uv/), and GNU make.
 ```bash
 make install      # Python deps + pre-commit hooks
 make up           # start Postgres+pgvector, MLflow, Ollama, HAPI FHIR; waits until healthy
+make seed         # ~2,000 synthetic members + 23 edge cases -> HAPI FHIR -> NDJSON export
 make pull-model   # optional now, needed from Phase 3: pulls qwen2.5:3b (~2 GB)
 make check        # lint, typecheck, unit tests
 make test-all     # adds integration tests against the running stack
@@ -38,7 +39,19 @@ make test-all     # adds integration tests against the running stack
 | Ollama     | http://localhost:11434       |
 | HAPI FHIR  | http://localhost:8080/fhir   |
 
-HAPI FHIR takes a few minutes to become healthy on first start.
+HAPI FHIR takes about a minute to become healthy on first start.
+
+### Synthetic members
+
+`make seed` generates members with a pinned Synthea release and fixed seeds, adds
+simulated statin pharmacy fills (Synthea has none) and 23 hand-built edge-case members
+with known expected gaps ([fixtures/edge_cases/members.yaml](fixtures/edge_cases/members.yaml)),
+loads them into HAPI FHIR, bulk-exports NDJSON to `data/export/` and validates the export.
+`make seed-verify` proves the run is reproducible. Use `SEED_POPULATION=20 make seed` for
+a quick run. See [ADR 0003](docs/adr/0003-synthetic-data-pipeline.md).
+
+> Upgrading from Phase 0: HAPI moved from H2 to Postgres. Run `make nuke && make up` once
+> so Postgres creates the `hapi` database.
 
 ## Architecture
 

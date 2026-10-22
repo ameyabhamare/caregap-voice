@@ -94,6 +94,25 @@ pipeline: ## Bronze/silver/gold + gap detection locally (PySpark, Parquet in dat
 sync-gaps: ## Load the gold snapshot (members, care gaps) into Postgres
 	$(UV) python -m caregap.gaps.sync data/lake/snapshot
 
+# Databricks (needs the databricks CLI and DATABRICKS_HOST + auth; see README).
+DATABRICKS_CATALOG ?= workspace
+DATABRICKS_SCHEMA ?= caregap
+DBX_VARS := --var catalog=$(DATABRICKS_CATALOG) --var schema=$(DATABRICKS_SCHEMA) \
+	--var measurement_year=$(MEASUREMENT_YEAR)
+DBX_VOLUME := dbfs:/Volumes/$(DATABRICKS_CATALOG)/$(DATABRICKS_SCHEMA)/raw
+
+.PHONY: pipeline-databricks databricks-validate
+databricks-validate: ## Validate the Databricks Asset Bundle
+	databricks bundle validate $(DBX_VARS)
+
+pipeline-databricks: ## Deploy bundle, upload NDJSON, run the job on serverless, sync gaps
+	databricks bundle deploy $(DBX_VARS)
+	databricks fs cp -r --overwrite data/export $(DBX_VOLUME)/export
+	databricks bundle run gap_pipeline $(DBX_VARS)
+	rm -rf data/lake/snapshot-databricks
+	databricks fs cp -r $(DBX_VOLUME)/gold_snapshot data/lake/snapshot-databricks
+	$(UV) python -m caregap.gaps.sync data/lake/snapshot-databricks
+
 # --- later phases (placeholders) ---------------------------------------------
 define todo
 	@echo "make $@: not implemented yet ($(1))"; exit 1

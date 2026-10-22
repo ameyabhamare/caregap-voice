@@ -8,7 +8,7 @@
 | 1 | Synthetic data | Approved |
 | 2 | Databricks pipeline + gap detection | Approved |
 | 3 | Core service, generation, compliance | Approved |
-| 4 | Voice (TTS + round trip) | Not started |
+| 4 | Voice (TTS + round trip) | Built; eval blocked on network |
 | 5 | Orchestration (n8n + Twilio mock) | Not started |
 | 6 | Multi-customer config | Not started |
 | 7 | RAG callback agent + hallucination analysis | Not started |
@@ -55,8 +55,21 @@
 - [x] Acceptance: `make eval-rules N=100` with qwen2.5:3b - first-attempt pass 28%, final 65%, review 35% (MLflow run 6faee595)
 - [x] Phase report posted, approved (2026-10-22)
 
+## Phase 4: Voice (TTS + round trip)
+- [x] `voice` dependency group (kokoro-onnx 0.6.1, faster-whisper 1.2.1)
+- [x] TTS interface, Kokoro provider (model pinned by sha256), paid stubs disabled
+- [x] Pronunciation overrides: 22 drugs + 4 plan names, IPA checked against Kokoro vocab
+- [x] STT (faster-whisper small.en), aligned WER with name attribution, 56 name sentences
+- [x] `script_audio` table, `POST/GET /scripts/{id}/audio`
+- [x] `make eval-voice` with unit tests (fakes)
+- [ ] **Acceptance: real `make eval-voice` run** - blocked: Hugging Face (Whisper models)
+      is not reachable; user asked to allow `huggingface.co`, `*.huggingface.co`, `*.hf.co`
+- [ ] Phase report posted, approved
+
 ## Resume here (hand-off between sessions)
-Status: Phase 3 approved. Next: Phase 4 plan (voice), waiting for "go". If a new session
+Status: Phase 4 built and tested; the real eval-voice run is blocked on Hugging Face access.
+Once allowed: `make eval-voice` (~30-45 min; downloads faster-whisper small.en to
+data/cache/whisper), then post the Phase 4 report. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`, and
 get qwen2.5:3b into Ollama (here: fetch manifest + blobs from registry.ollama.ai on the
@@ -70,6 +83,7 @@ Environment quirks seen in the cloud container:
   `DATABRICKS_HOST=https://dbc-02701db1-ff8f.cloud.databricks.com` and any placeholder
   `DATABRICKS_TOKEN` in `.env`. Install the Databricks CLI v1.22.1 from GitHub releases.
 - PySpark 4.0.4 builds from source on first `uv sync` (several minutes).
+- Kokoro model files download from GitHub releases into data/cache/kokoro on first use.
 
 ## Decisions log
 | Date | Decision | Why |

@@ -15,7 +15,9 @@ from caregap.data.fills import (
 PATIENT_ID = "11111111-2222-3333-4444-555555555555"
 
 
-def _order(oid: str, authored: str, status: str, text: str = "Simvastatin 20 MG Oral Tablet") -> Any:
+def _order(
+    oid: str, authored: str, status: str, text: str = "Simvastatin 20 MG Oral Tablet"
+) -> Any:
     return {
         "resourceType": "MedicationRequest",
         "id": oid,
@@ -30,9 +32,7 @@ def _bundle(*resources: Any) -> Any:
     return {
         "resourceType": "Bundle",
         "type": "transaction",
-        "entry": [
-            {"fullUrl": f"urn:uuid:{r['id']}", "resource": r} for r in (patient, *resources)
-        ],
+        "entry": [{"fullUrl": f"urn:uuid:{r['id']}", "resource": r} for r in (patient, *resources)],
     }
 
 

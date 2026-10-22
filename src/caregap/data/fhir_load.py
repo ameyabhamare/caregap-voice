@@ -111,6 +111,7 @@ def load_bundles(
     fill_seed: int | None,
     workers: int = 4,
     log: Callable[[str], None] = print,
+    transport: httpx.BaseTransport | None = None,
 ) -> LoadStats:
     """Load bundles concurrently. Simulated fills are added to Synthea patient bundles."""
     stats = LoadStats()
@@ -131,7 +132,7 @@ def load_bundles(
 
     timeout = httpx.Timeout(600, connect=10)
     with (
-        httpx.Client(base_url=base_url, timeout=timeout) as client,
+        httpx.Client(base_url=base_url, timeout=timeout, transport=transport) as client,
         ThreadPoolExecutor(workers) as pool,
     ):
         for n_res, n_fills, error in pool.map(send, sources):

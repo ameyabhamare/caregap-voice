@@ -37,13 +37,14 @@ def bulk_export(
     poll_seconds: float = 10,
     timeout_seconds: float = 3 * 3600,
     log: Callable[[str], None] = print,
+    transport: httpx.BaseTransport | None = None,
 ) -> dict[str, Path]:
     """Run a system-level export and write ``<out_dir>/<Type>.ndjson``. Returns the files."""
     out_dir.mkdir(parents=True, exist_ok=True)
     for old in out_dir.glob("*.ndjson"):
         old.unlink()
 
-    with httpx.Client(timeout=httpx.Timeout(300, connect=10)) as client:
+    with httpx.Client(timeout=httpx.Timeout(300, connect=10), transport=transport) as client:
         kick = client.get(
             f"{base_url}/$export",
             params={"_type": ",".join(types)},

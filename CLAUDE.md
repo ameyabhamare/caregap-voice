@@ -33,7 +33,10 @@ src/caregap/          Python package
   outreach/           profile, compliance rules, script generator, Postgres store
   api/app.py          FastAPI core service (`make serve`)
   prompts.py          prompt files <-> MLflow prompt registry
-  evals/              eval suites logged to MLflow (`make eval-rules`)
+  voice/              TTS (Kokoro), paid stubs, pronunciation overrides, STT, WER, rendering
+  evals/              eval suites logged to MLflow (`make eval-rules`, `make eval-voice`)
+voice/pronunciations.yaml  IPA + respelling overrides for drug and plan names
+fixtures/voice/       name sentences for the pronunciation eval
 prompts/              prompt source of truth (YAML); register with `make prompts-register`
 fixtures/edge_cases/  hand-built edge-case members with expected gap outcomes
 synthea/              Synthea properties (run parameters are pinned in caregap/data/synthea.py)
@@ -55,6 +58,8 @@ docs/adr/             architecture decision records
 - `make reset-fhir` empties the HAPI database.
 - `make prompts-register` after editing `prompts/*.yaml`; `make serve` runs the API.
 - `make eval-rules N=100` runs the rule-based compliance eval and logs to MLflow.
+- `make eval-voice` runs the TTS -> STT round trip (WER, name WER before/after overrides).
+- Tests marked `models` load real TTS/STT files from `data/cache`; `make check` skips them.
 - `make pipeline` (local PySpark) then `make sync-gaps`. `make pipeline-databricks` runs the
   job on Databricks serverless and syncs its output instead.
 
@@ -73,5 +78,7 @@ docs/adr/             architecture decision records
 - Application code calls models only through `LLMClient` (never a provider directly).
 - Never send sampling parameters to Claude; tune with `CLAUDE_EFFORT`.
 - Only `OutreachProfile.allowed_member_fields` may reach a prompt.
+- New drug or plan names go in `voice/pronunciations.yaml` and `fixtures/voice/name_sentences.yaml`
+  (a test keeps them in sync and checks IPA symbols against Kokoro's vocabulary).
 - Edge-case expectations must follow from the definitions in the YAML header; the oracle
   test enforces it. Changing a definition means updating the header, the oracle and Phase 2.

@@ -9,6 +9,8 @@ dependencies = [
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
     "psycopg[binary]>=3.2",
+    "httpx>=0.28",
+    "pyyaml>=6.0",
 ]
 
 [dependency-groups]
@@ -17,6 +19,7 @@ dev = [
     "ruff>=0.8",
     "mypy>=1.13",
     "pre-commit>=4.0",
+    "types-pyyaml>=6.0",
 ]
 
 [build-system]

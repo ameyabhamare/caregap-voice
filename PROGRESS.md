@@ -6,7 +6,7 @@
 |---|-------|--------|
 | 0 | Scaffold | Approved |
 | 1 | Synthetic data | Approved |
-| 2 | Databricks pipeline + gap detection | In review |
+| 2 | Databricks pipeline + gap detection | Approved |
 | 3 | Core service, generation, compliance | Not started |
 | 4 | Voice (TTS + round trip) | Not started |
 | 5 | Orchestration (n8n + Twilio mock) | Not started |
@@ -43,7 +43,7 @@
 - [x] Edge-case acceptance: 23 members x 3 measures match; targeted silver/gold tests
 - [x] `members` / `care_gaps` tables and idempotent `make sync-gaps`
 - [x] Databricks Asset Bundle; real run on Free Edition; output identical to local run
-- [ ] Approved
+- [x] Approved (2026-10-22)
 
 ## Decisions log
 | Date | Decision | Why |

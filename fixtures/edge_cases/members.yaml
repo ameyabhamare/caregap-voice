@@ -1,0 +1,292 @@
+# Hand-built edge-case members for gap-logic testing. DRAFT FOR REVIEW.
+#
+# All members are synthetic. Names use the family name "Edgecase"; phone numbers are in
+# the fictional 555-01xx range.
+#
+# Working measure definitions (approved in the Phase 1 plan; Phase 2 implements them):
+#   Measurement year 2025 (2025-01-01 to 2025-12-31 inclusive). As-of date 2026-01-01.
+#   Ages are taken on 2025-12-31.
+#   AWV        eligible: age >= 65.
+#              met: a wellness (check-up) encounter during the measurement year.
+#   EYE_EXAM   eligible: age 18-75 and a type 1 or 2 diabetes diagnosis with onset on or
+#              before 2025-12-31.
+#              met: a diabetic retinal eye exam in the measurement year, OR an exam in 2024
+#              whose retinopathy result is "No apparent retinopathy" in both eyes.
+#   STATIN     eligible: at least 2 statin fills in the measurement year.
+#              PDC = days covered / days from first 2025 fill to 2025-12-31. Early refills
+#              shift forward (standard PDC convention). met: PDC >= 0.80.
+#   Exclusions (any measure): hospice during the measurement year, or died on or before
+#              2025-12-31. A member who would be eligible is "excluded"; a member who would
+#              not be eligible anyway stays "not_eligible".
+#
+# expected values: met | gap | not_eligible | excluded
+#
+# Event types:
+#   wellness_visit {date}          check-up encounter (SNOMED 185349003)
+#   hospice {date}                 hospice admission encounter (305336008)
+#   diabetes {onset, kind: 1|2}    active diabetes condition
+#   prediabetes {onset}            active prediabetes condition
+#   eye_exam {date, retinopathy}   ophthalmic encounter + retinal exam procedure; retinopathy
+#                                  is none | mild | omitted (no result recorded)
+#   statin_order {date, status}    simvastatin 20 MG MedicationRequest
+#   statin_fill {date, days}       MedicationDispense with days supply
+
+measurement_year: 2025
+as_of: 2026-01-01
+
+members:
+  # ---------------------------------------------------------------- annual wellness visit
+  - id: edge-awv-met
+    given: Ava
+    gender: female
+    birth_date: 1955-04-02  # 70
+    events:
+      - {type: wellness_visit, date: 2025-06-10}
+    expected: {awv: met, eye_exam: not_eligible, statin: not_eligible}
+    why: Typical compliant member, visit mid-year.
+
+  - id: edge-awv-gap-13mo
+    given: Bruno
+    gender: male
+    birth_date: 1952-08-19  # 73
+    language: es
+    events:
+      - {type: wellness_visit, date: 2024-11-15}
+    expected: {awv: gap, eye_exam: not_eligible, statin: not_eligible}
+    why: Last visit about 13 months before the as-of date, in the prior year. Spanish speaker.
+
+  - id: edge-awv-jan1
+    given: Carmen
+    gender: female
+    birth_date: 1958-01-20  # 67
+    events:
+      - {type: wellness_visit, date: 2025-01-01}
+    expected: {awv: met, eye_exam: not_eligible, statin: not_eligible}
+    why: Visit on the first day of the measurement year counts (inclusive start).
+
+  - id: edge-awv-dec31
+    given: Dmitri
+    gender: male
+    birth_date: 1949-09-09  # 76
+    events:
+      - {type: wellness_visit, date: 2025-12-31}
+    expected: {awv: met, eye_exam: not_eligible, statin: not_eligible}
+    why: Visit on the last day of the measurement year counts (inclusive end).
+
+  - id: edge-awv-after-asof
+    given: Elena
+    gender: female
+    birth_date: 1957-03-03  # 68
+    events:
+      - {type: wellness_visit, date: 2026-01-02}
+    expected: {awv: gap, eye_exam: not_eligible, statin: not_eligible}
+    why: Only visit is after the as-of date; future-dated events must be ignored.
+
+  - id: edge-awv-turns-65-dec
+    given: Farid
+    gender: male
+    birth_date: 1960-12-15  # 65 on 2025-12-15
+    events: []
+    expected: {awv: gap, eye_exam: not_eligible, statin: not_eligible}
+    why: Turns 65 in December. Eligible because age is taken on 2025-12-31.
+
+  - id: edge-awv-age-64
+    given: Grace
+    gender: female
+    birth_date: 1961-01-02  # 64; turns 65 on 2026-01-02
+    events: []
+    expected: {awv: not_eligible, eye_exam: not_eligible, statin: not_eligible}
+    why: One day too young on 2025-12-31.
+
+  # ------------------------------------------------------------------ diabetic eye exam
+  - id: edge-eye-met
+    given: Hiro
+    gender: male
+    birth_date: 1968-05-05  # 57
+    events:
+      - {type: diabetes, onset: 2015-02-01, kind: 2}
+      - {type: eye_exam, date: 2025-03-01, retinopathy: none}
+    expected: {awv: not_eligible, eye_exam: met, statin: not_eligible}
+    why: Diabetic with an exam in the measurement year.
+
+  - id: edge-eye-gap
+    given: Ines
+    gender: female
+    birth_date: 1971-07-07  # 54
+    events:
+      - {type: diabetes, onset: 2018-09-12, kind: 2}
+      - {type: eye_exam, date: 2023-06-01, retinopathy: none}
+    expected: {awv: not_eligible, eye_exam: gap, statin: not_eligible}
+    why: Last exam two years before the measurement year; too old for the prior-year rule.
+
+  - id: edge-eye-prior-negative
+    given: Jamal
+    gender: male
+    birth_date: 1966-10-30  # 59
+    events:
+      - {type: diabetes, onset: 2012-04-04, kind: 2}
+      - {type: eye_exam, date: 2024-04-10, retinopathy: none}
+    expected: {awv: not_eligible, eye_exam: met, statin: not_eligible}
+    why: No 2025 exam, but a 2024 exam with no retinopathy satisfies the measure.
+
+  - id: edge-eye-prior-positive
+    given: Kenji
+    gender: male
+    birth_date: 1964-02-14  # 61
+    events:
+      - {type: diabetes, onset: 2010-11-01, kind: 2}
+      - {type: eye_exam, date: 2024-04-10, retinopathy: mild}
+    expected: {awv: not_eligible, eye_exam: gap, statin: not_eligible}
+    why: 2024 exam found retinopathy, so the prior-year rule does not apply.
+
+  - id: edge-eye-prior-no-result
+    given: Lena
+    gender: female
+    birth_date: 1969-08-21  # 56
+    events:
+      - {type: diabetes, onset: 2016-06-06, kind: 1}
+      - {type: eye_exam, date: 2024-09-15}
+    expected: {awv: not_eligible, eye_exam: gap, statin: not_eligible}
+    why: 2024 exam with no recorded result; absence of a negative result is not a negative.
+
+  - id: edge-eye-prediabetes
+    given: Marco
+    gender: male
+    birth_date: 1975-12-01  # 50
+    events:
+      - {type: prediabetes, onset: 2022-03-03}
+    expected: {awv: not_eligible, eye_exam: not_eligible, statin: not_eligible}
+    why: Prediabetes is not diabetes.
+
+  - id: edge-eye-age-76
+    given: Nadia
+    gender: female
+    birth_date: 1949-06-01  # 76
+    events:
+      - {type: diabetes, onset: 2005-01-15, kind: 2}
+      - {type: wellness_visit, date: 2025-05-01}
+    expected: {awv: met, eye_exam: not_eligible, statin: not_eligible}
+    why: Diabetic but over the eye-exam age limit; AWV still applies.
+
+  - id: edge-eye-dx-december
+    given: Omar
+    gender: male
+    birth_date: 1979-04-04  # 46
+    events:
+      - {type: diabetes, onset: 2025-12-20, kind: 2}
+    expected: {awv: not_eligible, eye_exam: gap, statin: not_eligible}
+    why: Diagnosed late in the measurement year; still in the denominator.
+
+  # ------------------------------------------------------------------ statin adherence
+  - id: edge-statin-pdc-81
+    given: Priya
+    gender: female
+    birth_date: 1962-07-19  # 63
+    events:
+      - {type: statin_order, date: 2025-03-01, status: active}
+      - {type: statin_fill, date: 2025-03-12, days: 30}
+      - {type: statin_fill, date: 2025-04-18, days: 30}
+      - {type: statin_fill, date: 2025-05-25, days: 30}
+      - {type: statin_fill, date: 2025-07-01, days: 30}
+      - {type: statin_fill, date: 2025-08-07, days: 30}
+      - {type: statin_fill, date: 2025-09-13, days: 30}
+      - {type: statin_fill, date: 2025-10-20, days: 30}
+      - {type: statin_fill, date: 2025-11-26, days: 30}
+    expected: {awv: not_eligible, eye_exam: not_eligible, statin: met}
+    why: 240 covered days of 295 (2025-03-12 to 2025-12-31) = 81.4%, just above 80%.
+
+  - id: edge-statin-pdc-79
+    given: Quinn
+    gender: male
+    birth_date: 1963-03-27  # 62
+    events:
+      - {type: statin_order, date: 2025-02-20, status: active}
+      - {type: statin_fill, date: 2025-03-02, days: 30}
+      - {type: statin_fill, date: 2025-04-09, days: 30}
+      - {type: statin_fill, date: 2025-05-17, days: 30}
+      - {type: statin_fill, date: 2025-06-24, days: 30}
+      - {type: statin_fill, date: 2025-08-01, days: 30}
+      - {type: statin_fill, date: 2025-09-08, days: 30}
+      - {type: statin_fill, date: 2025-10-16, days: 30}
+      - {type: statin_fill, date: 2025-11-23, days: 30}
+    expected: {awv: not_eligible, eye_exam: not_eligible, statin: gap}
+    why: 240 covered days of 305 (2025-03-02 to 2025-12-31) = 78.7%, just below 80%.
+
+  - id: edge-statin-single-fill
+    given: Rosa
+    gender: female
+    birth_date: 1970-11-11  # 55
+    events:
+      - {type: statin_order, date: 2025-05-25, status: active}
+      - {type: statin_fill, date: 2025-06-01, days: 90}
+    expected: {awv: not_eligible, eye_exam: not_eligible, statin: not_eligible}
+    why: One fill is not enough to enter the denominator.
+
+  - id: edge-statin-late-start
+    given: Sam
+    gender: male
+    birth_date: 1959-02-28  # 66
+    events:
+      - {type: wellness_visit, date: 2025-09-25}
+      - {type: statin_order, date: 2025-09-25, status: active}
+      - {type: statin_fill, date: 2025-10-01, days: 30}
+      - {type: statin_fill, date: 2025-10-31, days: 30}
+      - {type: statin_fill, date: 2025-11-30, days: 30}
+    expected: {awv: met, eye_exam: not_eligible, statin: met}
+    why: Started in October; PDC is measured from the first fill, not from January (90/92).
+
+  - id: edge-statin-early-refills
+    given: Tara
+    gender: female
+    birth_date: 1961-06-06  # 64
+    events:
+      - {type: statin_order, date: 2024-12-20, status: active}
+      - {type: statin_fill, date: 2025-01-01, days: 60}
+      - {type: statin_fill, date: 2025-02-15, days: 60}
+      - {type: statin_fill, date: 2025-04-01, days: 60}
+      - {type: statin_fill, date: 2025-05-16, days: 60}
+      - {type: statin_fill, date: 2025-06-30, days: 60}
+    expected: {awv: not_eligible, eye_exam: not_eligible, statin: met}
+    why: >-
+      Refills every 45 days with 60-day supplies. Shifting early refills forward covers
+      300 of 365 days (82.2%, met); a plain union of dates would give 240 (65.8%, gap).
+      Pins the PDC convention.
+
+  # ------------------------------------------------------------------------ exclusions
+  - id: edge-hospice
+    given: Uma
+    gender: female
+    birth_date: 1950-01-30  # 75
+    events:
+      - {type: diabetes, onset: 2008-08-08, kind: 2}
+      - {type: statin_order, date: 2024-12-01, status: active}
+      - {type: statin_fill, date: 2025-01-05, days: 30}
+      - {type: statin_fill, date: 2025-02-04, days: 30}
+      - {type: hospice, date: 2025-05-10}
+    expected: {awv: excluded, eye_exam: excluded, statin: excluded}
+    why: Would have gaps on all three measures, but entered hospice in 2025.
+
+  - id: edge-deceased
+    given: Victor
+    gender: male
+    birth_date: 1948-05-17  # 77
+    deceased: 2025-08-14
+    events:
+      - {type: diabetes, onset: 2001-03-03, kind: 2}
+    expected: {awv: excluded, eye_exam: not_eligible, statin: not_eligible}
+    why: Died in 2025. Over 75, so not in the eye-exam denominator anyway.
+
+  # ------------------------------------------------------------------------ combined
+  - id: edge-all-gaps
+    given: Wen
+    gender: female
+    birth_date: 1956-09-23  # 69
+    events:
+      - {type: wellness_visit, date: 2024-03-01}
+      - {type: diabetes, onset: 2019-07-07, kind: 2}
+      - {type: statin_order, date: 2024-12-15, status: active}
+      - {type: statin_fill, date: 2025-01-10, days: 30}
+      - {type: statin_fill, date: 2025-04-20, days: 30}
+      - {type: statin_fill, date: 2025-08-01, days: 30}
+    expected: {awv: gap, eye_exam: gap, statin: gap}
+    why: Open gap on every measure (statin PDC 90/356 = 25.3%). Main outreach test member.

@@ -59,20 +59,21 @@ services:
       retries: 20
 
   hapi-fhir:
-    # The -tomcat variant ships curl for the healthcheck; the default image is distroless.
-    image: hapiproject/hapi:v8.10.0-3-tomcat
+    image: hapiproject/hapi:v8.10.0-3
     environment:
       # H2 file database in a named volume (fine at ~2k members; revisit in Phase 1).
-      # /target is the image's default H2 location and the only dir its non-root user owns.
-      spring.datasource.url: jdbc:h2:file:/target/database/h2
+      # The image runs as uid 65532; /home/nonroot is the dir it owns, so the volume
+      # mounts there and inherits that ownership.
+      spring.datasource.url: jdbc:h2:file:/home/nonroot/h2/hapi
       hapi.fhir.fhir_version: R4
       hapi.fhir.bulk_export_enabled: "true"
     ports:
       - "127.0.0.1:${FHIR_PORT:-8080}:8080"
     volumes:
-      - hapidata:/target
+      - hapidata:/home/nonroot
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/fhir/metadata"]
+      # Distroless image: no shell or curl. It ships this Actuator /health probe.
+      test: ["CMD", "java", "-cp", "/app", "HealthCheck"]
       interval: 15s
       timeout: 10s
       retries: 40

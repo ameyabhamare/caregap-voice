@@ -35,7 +35,7 @@
 | 2026-10-22 | Ledger reserves worst-case cost before a call, settles actual after | Concurrent calls can't overspend; see ADR 0002. |
 | 2026-10-22 | Failed call with no usage report is charged at the estimate | The cap must overcount, never undercount. |
 | 2026-10-22 | Local ($0) calls allowed even after the cap is hit | The default stack must keep working; they are still logged. |
-| 2026-10-22 | HAPI `-tomcat` image variant | The default image is distroless, so it has no curl for a healthcheck. Same HAPI version. |
+| 2026-10-22 | HAPI default (distroless) image, using its bundled `HealthCheck` probe | The `-tomcat` variant cannot unpack its WAR as non-root and took more than 14 min without ever becoming healthy; the default image is healthy in about 35 s. |
 
 ## Open questions
 - Claude prices in `src/caregap/cost/pricing.py` were last checked 2026-10-06. Re-check before Phase 11.

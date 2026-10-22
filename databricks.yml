@@ -1,0 +1,107 @@
+# Databricks Asset Bundle: the gap-detection pipeline as a serverless job.
+# Works on Databricks Free Edition (serverless compute, Unity Catalog, volumes).
+#
+#   make pipeline-databricks      # deploy, upload NDJSON, run, download snapshot, sync
+#
+# Auth comes from the environment (DATABRICKS_HOST plus a token or profile); the
+# workspace host is deliberately not committed.
+
+bundle:
+  name: caregap-voice
+
+variables:
+  catalog:
+    description: Unity Catalog catalog ("workspace" is the Free Edition default)
+    default: workspace
+  schema:
+    description: Schema holding the bronze/silver/gold tables and the raw volume
+    default: caregap
+  measurement_year:
+    description: Measurement year for gap detection
+    default: "2025"
+
+artifacts:
+  pipeline_wheel:
+    type: whl
+    build: uv build --wheel
+    path: .
+
+sync:
+  # Only the wheel is needed at runtime; keep the workspace copy small.
+  exclude:
+    - data/**
+    - tests/**
+    - fixtures/**
+    - docs/**
+    - docker/**
+
+resources:
+  schemas:
+    caregap:
+      catalog_name: ${var.catalog}
+      name: ${var.schema}
+      comment: CareGap Voice medallion tables (synthetic data only)
+
+  volumes:
+    raw:
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.caregap.name}
+      name: raw
+      volume_type: MANAGED
+      comment: FHIR NDJSON uploads and gold snapshots
+
+  jobs:
+    gap_pipeline:
+      name: caregap-gap-pipeline
+      max_concurrent_runs: 1
+      environments:
+        - environment_key: default
+          spec:
+            # Serverless environment 4: Python 3.12, Spark 4.0 (matches local pyspark 4.0.4).
+            environment_version: "4"
+            dependencies:
+              - ./dist/*.whl
+      tasks:
+        - task_key: bronze
+          environment_key: default
+          python_wheel_task:
+            package_name: caregap
+            entry_point: caregap-pipeline
+            parameters:
+              - --layer=bronze
+              - --source=/Volumes/${var.catalog}/${var.schema}/raw/export
+              - --catalog=${var.catalog}
+              - --schema=${var.schema}
+        - task_key: silver
+          depends_on: [{task_key: bronze}]
+          environment_key: default
+          python_wheel_task:
+            package_name: caregap
+            entry_point: caregap-pipeline
+            parameters: [--layer=silver, "--catalog=${var.catalog}", "--schema=${var.schema}"]
+        - task_key: gold
+          depends_on: [{task_key: silver}]
+          environment_key: default
+          python_wheel_task:
+            package_name: caregap
+            entry_point: caregap-pipeline
+            parameters:
+              - --layer=gold
+              - --year=${var.measurement_year}
+              - --catalog=${var.catalog}
+              - --schema=${var.schema}
+        - task_key: snapshot
+          depends_on: [{task_key: gold}]
+          environment_key: default
+          python_wheel_task:
+            package_name: caregap
+            entry_point: caregap-pipeline
+            parameters:
+              - --layer=snapshot
+              - --snapshot-dir=/Volumes/${var.catalog}/${var.schema}/raw/gold_snapshot
+              - --catalog=${var.catalog}
+              - --schema=${var.schema}
+
+targets:
+  dev:
+    default: true

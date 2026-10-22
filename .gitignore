@@ -26,3 +26,6 @@ mlartifacts/
 .idea/
 .vscode/
 .DS_Store
+
+# Databricks bundle state
+.databricks/

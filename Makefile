@@ -10,7 +10,7 @@ export
 
 .PHONY: help
 help: ## List targets
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
+	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(firstword $(MAKEFILE_LIST)) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 # --- setup -------------------------------------------------------------------
 .PHONY: install
@@ -63,16 +63,32 @@ test-all: ## Unit + integration tests (needs `make up`)
 
 check: lint typecheck test ## Everything CI runs
 
+# --- synthetic data (Phase 1) ------------------------------------------------
+SEED_POPULATION ?= 2000
+PG_USER := $(or $(POSTGRES_USER),caregap)
+
+.PHONY: seed seed-verify reset-fhir
+seed: ## Generate Synthea members + edge cases, load into HAPI, bulk export, validate
+	$(UV) python -m caregap.data seed --population $(SEED_POPULATION)
+
+reset-fhir: ## Empty the HAPI FHIR database (data loss)
+	$(COMPOSE) stop hapi-fhir
+	$(COMPOSE) exec -T postgres psql -q -U $(PG_USER) -d postgres \
+		-c "DROP DATABASE IF EXISTS hapi WITH (FORCE)" -c "CREATE DATABASE hapi"
+	$(COMPOSE) up -d --wait hapi-fhir
+
+seed-verify: ## Seed twice from an empty FHIR server and check the exports are identical
+	$(MAKE) reset-fhir seed
+	cp data/export/manifest.json data/manifest.run1.json
+	$(MAKE) reset-fhir seed
+	$(UV) python -m caregap.data.validate data/manifest.run1.json data/export/manifest.json
+
 # --- later phases (placeholders) ---------------------------------------------
 define todo
 	@echo "make $@: not implemented yet ($(1))"; exit 1
 endef
 
-.PHONY: seed export-fhir pipeline sync-gaps eval eval-voice run-campaign dashboard
-seed: ## [Phase 1] Generate Synthea members and load into HAPI FHIR
-	$(call todo,Phase 1)
-export-fhir: ## [Phase 1] FHIR bulk export to NDJSON
-	$(call todo,Phase 1)
+.PHONY: pipeline sync-gaps eval eval-voice run-campaign dashboard
 pipeline: ## [Phase 2] Run Databricks medallion pipeline
 	$(call todo,Phase 2)
 sync-gaps: ## [Phase 2] Sync gold gap tables into local Postgres

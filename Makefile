@@ -113,6 +113,11 @@ pipeline-databricks: ## Deploy bundle, upload NDJSON, run the job on serverless,
 	databricks fs cp -r $(DBX_VOLUME)/gold_snapshot data/lake/snapshot-databricks
 	$(UV) python -m caregap.gaps.sync data/lake/snapshot-databricks
 
+# --- core service, generation, compliance (Phase 3) ----------------------------
+.PHONY: prompts-register
+prompts-register: ## Register changed prompts in MLflow and point "production" at them
+	$(UV) python -m caregap.prompts
+
 # --- later phases (placeholders) ---------------------------------------------
 define todo
 	@echo "make $@: not implemented yet ($(1))"; exit 1

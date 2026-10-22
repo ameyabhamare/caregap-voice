@@ -1,0 +1,14 @@
+# Sent after a script fails compliance, with the failed script and the violations.
+name: outreach-script-revise
+description: Ask the model to fix a script that failed compliance checks.
+messages:
+  - role: user
+    content: |
+      That script failed these compliance checks:
+      {{violations}}
+
+      Rewrite the whole script so it passes every check. Keep the same rules as before.
+      Remember to end with these two sentences, copied exactly:
+      "{{disclaimer}}"
+      "{{opt_out}}"
+      Reply with the script only.

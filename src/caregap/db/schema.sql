@@ -19,3 +19,34 @@ CREATE TABLE IF NOT EXISTS cost_ledger (
 );
 
 CREATE INDEX IF NOT EXISTS cost_ledger_created_at_idx ON cost_ledger (created_at);
+
+-- Member registry, synced from the gold layer (synthetic data only).
+CREATE TABLE IF NOT EXISTS members (
+    member_id      TEXT PRIMARY KEY,
+    given_name     TEXT,
+    family_name    TEXT,
+    birth_date     DATE NOT NULL,
+    gender         TEXT,
+    language       TEXT NOT NULL DEFAULT 'en',
+    phone          TEXT,
+    deceased_date  DATE,
+    is_edge_case   BOOLEAN NOT NULL DEFAULT false,
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Care-gap status per member, measure and measurement year, synced from gold.
+-- A sync replaces every row of a measurement year in one transaction.
+CREATE TABLE IF NOT EXISTS care_gaps (
+    member_id         TEXT NOT NULL REFERENCES members (member_id),
+    measure           TEXT NOT NULL CHECK (measure IN ('awv', 'eye_exam', 'statin')),
+    measurement_year  INTEGER NOT NULL,
+    status            TEXT NOT NULL CHECK (status IN ('met', 'gap', 'not_eligible', 'excluded')),
+    evidence_date     DATE,
+    pdc               NUMERIC(6, 4) CHECK (pdc BETWEEN 0 AND 1),
+    reason            TEXT NOT NULL,
+    synced_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (member_id, measure, measurement_year)
+);
+
+CREATE INDEX IF NOT EXISTS care_gaps_open_idx
+    ON care_gaps (measurement_year, measure) WHERE status = 'gap';

@@ -114,7 +114,10 @@ pipeline-databricks: ## Deploy bundle, upload NDJSON, run the job on serverless,
 	$(UV) python -m caregap.gaps.sync data/lake/snapshot-databricks
 
 # --- core service, generation, compliance (Phase 3) ----------------------------
-.PHONY: prompts-register
+.PHONY: prompts-register serve
+serve: ## Run the core service API on http://localhost:8000
+	$(UV) uvicorn --factory caregap.api.app:create_app --host 127.0.0.1 --port 8000
+
 prompts-register: ## Register changed prompts in MLflow and point "production" at them
 	$(UV) python -m caregap.prompts
 

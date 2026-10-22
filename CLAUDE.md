@@ -29,6 +29,12 @@ src/caregap/          Python package
                       bulk export, export validation (`python -m caregap.data <step>`)
   pipeline/           PySpark medallion pipeline + gap detection (local Parquet or UC Delta)
   gaps/sync.py        gold snapshot -> Postgres members/care_gaps
+  llm/                LLM providers (Ollama, Claude) + LLMClient (metered by the ledger)
+  outreach/           profile, compliance rules, script generator, Postgres store
+  api/app.py          FastAPI core service (`make serve`)
+  prompts.py          prompt files <-> MLflow prompt registry
+  evals/              eval suites logged to MLflow (`make eval-rules`)
+prompts/              prompt source of truth (YAML); register with `make prompts-register`
 fixtures/edge_cases/  hand-built edge-case members with expected gap outcomes
 synthea/              Synthea properties (run parameters are pinned in caregap/data/synthea.py)
 databricks.yml        Databricks Asset Bundle: serverless job running the same pipeline
@@ -47,6 +53,8 @@ docs/adr/             architecture decision records
   `data/export/`, validates and writes `manifest.json`. `SEED_POPULATION=20` for a quick run.
 - `make seed-verify` seeds twice from an empty FHIR server and compares content digests.
 - `make reset-fhir` empties the HAPI database.
+- `make prompts-register` after editing `prompts/*.yaml`; `make serve` runs the API.
+- `make eval-rules N=100` runs the rule-based compliance eval and logs to MLflow.
 - `make pipeline` (local PySpark) then `make sync-gaps`. `make pipeline-databricks` runs the
   job on Databricks serverless and syncs its output instead.
 
@@ -62,5 +70,8 @@ docs/adr/             architecture decision records
   (`edge-case` or `simulated-fill`).
 - Pipeline code uses the DataFrame API and Spark SQL only (no RDDs/SparkContext), so it
   runs on Databricks serverless. Local PySpark stays pinned to serverless environment 4.
+- Application code calls models only through `LLMClient` (never a provider directly).
+- Never send sampling parameters to Claude; tune with `CLAUDE_EFFORT`.
+- Only `OutreachProfile.allowed_member_fields` may reach a prompt.
 - Edge-case expectations must follow from the definitions in the YAML header; the oracle
   test enforces it. Changing a definition means updating the header, the oracle and Phase 2.

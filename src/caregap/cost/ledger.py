@@ -31,7 +31,7 @@ from typing import Protocol
 
 import psycopg
 
-from caregap.cost.errors import BudgetExceededError
+from caregap.cost.errors import BudgetExceededError, UnknownModelPriceError
 from caregap.cost.pricing import cost_usd, is_free, price_for
 
 
@@ -49,6 +49,8 @@ class Usage:
 
     input_tokens: int | None = None
     output_tokens: int | None = None
+    # Set when the provider served the call with a different model (e.g. a refusal fallback).
+    served_model: str | None = None
 
 
 class LedgerStore(Protocol):
@@ -113,8 +115,26 @@ class CostLedger:
             )
         return Reservation(entry_id, provider, model, estimate)
 
-    def settle(self, reservation: Reservation, *, input_tokens: int, output_tokens: int) -> Decimal:
+    def settle(
+        self,
+        reservation: Reservation,
+        *,
+        input_tokens: int,
+        output_tokens: int,
+        served_model: str | None = None,
+    ) -> Decimal:
+        """Record the actual cost.
+
+        If a different model served the call, charge the higher of the two models' prices;
+        if that model has no price, charge the reservation's worst-case estimate.
+        """
         actual = cost_usd(reservation.provider, reservation.model, input_tokens, output_tokens)
+        if served_model and served_model != reservation.model:
+            try:
+                served = cost_usd(reservation.provider, served_model, input_tokens, output_tokens)
+            except UnknownModelPriceError:
+                served = reservation.estimated_usd
+            actual = max(actual, served)
         self._store.settle(
             reservation.id,
             input_tokens=input_tokens,
@@ -154,7 +174,10 @@ class CostLedger:
         except BaseException:
             if usage.input_tokens is not None and usage.output_tokens is not None:
                 self.settle(
-                    reservation, input_tokens=usage.input_tokens, output_tokens=usage.output_tokens
+                    reservation,
+                    input_tokens=usage.input_tokens,
+                    output_tokens=usage.output_tokens,
+                    served_model=usage.served_model,
                 )
             else:
                 self._store.settle(
@@ -172,7 +195,12 @@ class CostLedger:
                 actual_usd=reservation.estimated_usd,
             )
             raise RuntimeError("CostLedger.guard block finished without reporting usage")
-        self.settle(reservation, input_tokens=usage.input_tokens, output_tokens=usage.output_tokens)
+        self.settle(
+            reservation,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            served_model=usage.served_model,
+        )
 
 
 @dataclass

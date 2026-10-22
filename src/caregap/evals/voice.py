@@ -194,6 +194,9 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m caregap.evals.voice")
     parser.add_argument("--scripts-run", help="rule-eval MLflow run id (default: latest)")
     parser.add_argument("--limit", type=int, help="only the first N scripts (smoke runs)")
+    parser.add_argument(
+        "--names-only", action="store_true", help="skip set A (e.g. after a dictionary change)"
+    )
     args = parser.parse_args(argv)
 
     settings = get_settings()
@@ -208,7 +211,9 @@ def main(argv: list[str] | None = None) -> None:
     voice = settings.tts_voice
     print(f"[eval-voice] {len(scripts)} scripts (run {run_id}), {len(sentences)} name sentences")
 
-    script_rows = run_scripts(scripts, tts["overrides"], stt, voice, print)
+    script_rows = (
+        [] if args.names_only else run_scripts(scripts, tts["overrides"], stt, voice, print)
+    )
     name_rows = run_names(sentences, tts, stt, voice, print)
     metrics = summarize(script_rows, name_rows)
     params = {
@@ -216,7 +221,7 @@ def main(argv: list[str] | None = None) -> None:
         "voice": voice,
         "stt": f"faster-whisper:{settings.stt_model}",
         "scripts_run": run_id,
-        "n_scripts": len(scripts),
+        "n_scripts": 0 if args.names_only else len(scripts),
         "n_name_sentences": len(sentences),
     }
     report = report_markdown(metrics, name_rows, params)

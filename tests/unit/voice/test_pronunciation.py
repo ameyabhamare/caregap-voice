@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from importlib.resources import files
+from pathlib import Path
 
 import pytest
 
@@ -61,7 +62,7 @@ def test_name_sentences_cover_every_term_and_contain_their_names() -> None:
 
     from caregap.voice.wer import tokens
 
-    data = yaml.safe_load(open("fixtures/voice/name_sentences.yaml"))
+    data = yaml.safe_load(Path("fixtures/voice/name_sentences.yaml").read_text())
     covered = {n.lower() for s in data["sentences"] for n in s["names"]}
     assert covered == set(D.entries)
     for s in data["sentences"]:

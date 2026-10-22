@@ -7,7 +7,7 @@
 | 0 | Scaffold | Approved |
 | 1 | Synthetic data | Approved |
 | 2 | Databricks pipeline + gap detection | Approved |
-| 3 | Core service, generation, compliance | Not started |
+| 3 | Core service, generation, compliance | Built; acceptance eval blocked |
 | 4 | Voice (TTS + round trip) | Not started |
 | 5 | Orchestration (n8n + Twilio mock) | Not started |
 | 6 | Multi-customer config | Not started |
@@ -44,6 +44,45 @@
 - [x] `members` / `care_gaps` tables and idempotent `make sync-gaps`
 - [x] Databricks Asset Bundle; real run on Free Edition; output identical to local run
 - [x] Approved (2026-10-22)
+
+## Phase 3: Core service, generation, compliance
+- [x] LLM providers (Ollama default, Claude via anthropic 1.x) behind metered `LLMClient`
+- [x] Prompts in `prompts/`, registered in MLflow (`production` alias)
+- [x] Rule-based compliance checker (8 rules) and outreach profile (built-in default)
+- [x] Generator: generate -> check -> revise once -> `needs_review`
+- [x] `outreach_scripts` table, FastAPI service (`make serve`), review queue endpoints
+- [x] `make eval-rules` (MLflow logging) with unit tests
+- [ ] **Acceptance: `make eval-rules N=100` with qwen2.5:3b** - blocked, see "Resume here"
+- [ ] Phase report posted, approved
+
+## Resume here (hand-off between sessions)
+Status: Phase 3 is built, tested (237 tests) and pushed. Only the acceptance eval is left,
+then the Phase 3 report. Decisions approved for Phase 3: defaults in the plan (Claude
+provider now, cautious PHI allowlist: first name only, no diagnosis or drug names; one
+script per member covering at most 2 gaps; built-in Sunrise default profile until Phase 6;
+service runs on the host until Phase 5). Default Claude model changed to claude-opus-5-5.
+
+Blocker: the cloud environment's network policy blocks the model download. The user was
+asked to allow `registry.ollama.ai` and `*.r2.cloudflarestorage.com`.
+
+Next steps:
+1. Rebuild state (the container is ephemeral): start dockerd if needed, `make up`,
+   `make seed` (~18 min), `make pipeline`, `make sync-gaps`, `make prompts-register`.
+2. Get qwen2.5:3b into Ollama. Containers here cannot resolve outside DNS, so fetch the
+   manifest and blobs from registry.ollama.ai on the host and copy them into the ollama
+   volume (`/root/.ollama/models/{manifests,blobs}`); on a normal machine `make pull-model`.
+3. `make eval-rules N=100`, then post the Phase 3 report (template in CLAUDE.md working
+   agreement) with the MLflow metrics, and wait for "approved".
+
+Environment quirks seen in the cloud container:
+- The Docker daemon is not running after a container restart: `nohup dockerd &`.
+- Docker Hub may rate-limit pulls; the stack's images were pulled fine before.
+- Image builds need no proxy build args; pip inside `docker build` needs the proxy CA
+  (`/root/.ccr/ca-bundle.crt`) for the MLflow image - build it once from a scratch copy.
+- Databricks: the token is injected by the environment's network secret; set
+  `DATABRICKS_HOST=https://dbc-02701db1-ff8f.cloud.databricks.com` and any placeholder
+  `DATABRICKS_TOKEN` in `.env`. Install the Databricks CLI v1.22.1 from GitHub releases.
+- PySpark 4.0.4 builds from source on first `uv sync` (several minutes).
 
 ## Decisions log
 | Date | Decision | Why |

@@ -53,6 +53,8 @@ CREATE INDEX IF NOT EXISTS care_gaps_open_idx
 
 -- Generated outreach scripts, with every attempt and its compliance result.
 -- status: compliant | needs_review (generation) -> approved | rejected (human review).
+-- pending_approval: compliant, but held for a human because it is among the first N
+-- messages of a campaign (Phase 5).
 CREATE TABLE IF NOT EXISTS outreach_scripts (
     id                BIGSERIAL PRIMARY KEY,
     member_id         TEXT NOT NULL REFERENCES members (member_id),
@@ -75,8 +77,10 @@ CREATE TABLE IF NOT EXISTS outreach_scripts (
     review_note       TEXT
 );
 
-CREATE INDEX IF NOT EXISTS outreach_scripts_review_idx
-    ON outreach_scripts (created_at) WHERE status = 'needs_review';
+-- Recreated on every apply so older databases get the current predicate (small table).
+DROP INDEX IF EXISTS outreach_scripts_review_idx;
+CREATE INDEX outreach_scripts_review_idx
+    ON outreach_scripts (created_at) WHERE status IN ('needs_review', 'pending_approval');
 
 -- Rendered audio for outreach scripts (files live under data/audio until Phase 11).
 CREATE TABLE IF NOT EXISTS script_audio (
@@ -92,3 +96,103 @@ CREATE TABLE IF NOT EXISTS script_audio (
 );
 
 CREATE INDEX IF NOT EXISTS script_audio_script_idx ON script_audio (script_id, created_at);
+
+-- Phase 5: campaigns. Earlier databases have the narrower status check; replace it.
+ALTER TABLE outreach_scripts DROP CONSTRAINT IF EXISTS outreach_scripts_status_check;
+ALTER TABLE outreach_scripts ADD CONSTRAINT outreach_scripts_status_check CHECK (
+    status IN ('compliant', 'needs_review', 'pending_approval', 'approved', 'rejected'));
+
+-- Contact consent per member and channel. No row means unknown, and unknown means no call.
+CREATE TABLE IF NOT EXISTS consent (
+    member_id   TEXT NOT NULL REFERENCES members (member_id),
+    channel     TEXT NOT NULL CHECK (channel IN ('voice')),
+    status      TEXT NOT NULL CHECK (status IN ('granted', 'revoked')),
+    -- synthetic-seed | dtmf | ...
+    source      TEXT NOT NULL,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (member_id, channel)
+);
+
+CREATE TABLE IF NOT EXISTS campaigns (
+    id                   BIGSERIAL PRIMARY KEY,
+    name                 TEXT NOT NULL,
+    measurement_year     INTEGER NOT NULL,
+    -- Copied from the outreach profile at creation, so a running campaign is unaffected
+    -- by later profile changes.
+    approval_first_n     INTEGER NOT NULL,
+    max_call_attempts    INTEGER NOT NULL,
+    retry_delay_minutes  INTEGER NOT NULL,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- One row per member per campaign: the member's place in the outreach state machine.
+CREATE TABLE IF NOT EXISTS campaign_members (
+    campaign_id     BIGINT NOT NULL REFERENCES campaigns (id),
+    member_id       TEXT NOT NULL REFERENCES members (member_id),
+    state           TEXT NOT NULL CHECK (state IN (
+                        'selected', 'preparing', 'awaiting_review', 'ready', 'calling',
+                        'retry_wait', 'completed', 'opted_out', 'escalated', 'failed',
+                        'skipped')),
+    -- Why a member was skipped or failed.
+    reason          TEXT,
+    script_id       BIGINT REFERENCES outreach_scripts (id),
+    -- The script went through a human (first-N hold or failed compliance).
+    human_gate      BOOLEAN NOT NULL DEFAULT false,
+    calls_made      INTEGER NOT NULL DEFAULT 0,
+    -- When the next call may be placed (ready / retry_wait).
+    next_call_at    TIMESTAMPTZ,
+    -- When the current state was entered; used to recover work stuck in preparing/calling.
+    state_since     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (campaign_id, member_id)
+);
+
+CREATE INDEX IF NOT EXISTS campaign_members_work_idx
+    ON campaign_members (state, next_call_at)
+    WHERE state IN ('selected', 'preparing', 'awaiting_review', 'ready', 'calling',
+                    'retry_wait');
+
+-- Each outbound call. status follows Twilio's CallStatus; 'queued' until dispatched.
+CREATE TABLE IF NOT EXISTS call_attempts (
+    id            BIGSERIAL PRIMARY KEY,
+    campaign_id   BIGINT NOT NULL,
+    member_id     TEXT NOT NULL,
+    attempt_no    INTEGER NOT NULL,
+    script_id     BIGINT NOT NULL REFERENCES outreach_scripts (id),
+    audio_id      BIGINT NOT NULL REFERENCES script_audio (id),
+    call_sid      TEXT UNIQUE,
+    status        TEXT NOT NULL CHECK (status IN (
+                      'queued', 'dispatched', 'completed', 'no-answer', 'busy', 'failed',
+                      'canceled')),
+    digits        TEXT,
+    duration_s    INTEGER,
+    error         TEXT,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (campaign_id, member_id) REFERENCES campaign_members (campaign_id, member_id),
+    UNIQUE (campaign_id, member_id, attempt_no)
+);
+
+-- Interaction log: every telephony callback as received.
+CREATE TABLE IF NOT EXISTS telephony_events (
+    id               BIGSERIAL PRIMARY KEY,
+    call_attempt_id  BIGINT REFERENCES call_attempts (id),
+    kind             TEXT NOT NULL CHECK (kind IN ('status', 'gather')),
+    payload          JSONB NOT NULL,
+    received_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Work for people: members asking for a human, calls that failed for good, workflow errors.
+CREATE TABLE IF NOT EXISTS escalations (
+    id               BIGSERIAL PRIMARY KEY,
+    kind             TEXT NOT NULL CHECK (kind IN (
+                         'member_request', 'delivery_failed', 'workflow_error')),
+    campaign_id      BIGINT REFERENCES campaigns (id),
+    member_id        TEXT REFERENCES members (member_id),
+    call_attempt_id  BIGINT REFERENCES call_attempts (id),
+    detail           TEXT NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    resolved_at      TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS escalations_open_idx ON escalations (created_at)
+    WHERE resolved_at IS NULL;

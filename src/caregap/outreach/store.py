@@ -68,7 +68,10 @@ class OutreachStore:
             ).fetchall()
         return [Gap(**r) for r in rows]
 
-    def save_script(self, outcome: ScriptOutcome, year: int) -> int:
+    def save_script(self, outcome: ScriptOutcome, year: int, *, hold: bool = False) -> int:
+        """Store a generated script. ``hold`` parks a compliant script as
+        ``pending_approval`` so a human approves it before it is used."""
+        status = "pending_approval" if hold and outcome.status == "compliant" else outcome.status
         attempts = [
             {
                 "text": a.text,
@@ -91,7 +94,7 @@ class OutreachStore:
                 RETURNING id
                 """,
                 (
-                    outcome.member_id, year, list(outcome.measures), outcome.status,
+                    outcome.member_id, year, list(outcome.measures), status,
                     outcome.script, json.dumps(attempts[-1]["violations"]), json.dumps(attempts),
                     json.dumps(outcome.prompt_versions), outcome.provider, outcome.model,
                     sum(a.input_tokens for a in outcome.attempts),
@@ -114,7 +117,8 @@ class OutreachStore:
     def pending_reviews(self, limit: int = 100) -> list[dict[str, Any]]:
         with self._connect() as conn:
             return conn.execute(
-                "SELECT * FROM outreach_scripts WHERE status = 'needs_review'"
+                "SELECT * FROM outreach_scripts"
+                " WHERE status IN ('needs_review', 'pending_approval')"
                 " ORDER BY created_at, id LIMIT %s",
                 (limit,),
             ).fetchall()
@@ -125,7 +129,7 @@ class OutreachStore:
                 """
                 UPDATE outreach_scripts
                 SET status = %s, reviewer = %s, review_note = %s, reviewed_at = now()
-                WHERE id = %s AND status = 'needs_review'
+                WHERE id = %s AND status IN ('needs_review', 'pending_approval')
                 """,
                 ("approved" if approve else "rejected", reviewer, note, script_id),
             )  # fmt: skip
@@ -136,5 +140,5 @@ class OutreachStore:
                 if exists is None:
                     raise NotFoundError(f"script {script_id} not found")
                 raise ReviewConflictError(
-                    f"script {script_id} is {exists['status']}, not needs_review"
+                    f"script {script_id} is {exists['status']}, not waiting for review"
                 )

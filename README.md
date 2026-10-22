@@ -8,7 +8,7 @@ questions from plan benefit documents.
 > **All data is synthetic.** Members are generated with [Synthea](https://synthetichealth.github.io/synthea/).
 > There is no real PHI anywhere in this repository, its fixtures, or its demo recordings.
 
-**Status:** Phase 2 (pipeline and gap detection). See [PROGRESS.md](PROGRESS.md).
+**Status:** Phase 3 (core service, generation, compliance). See [PROGRESS.md](PROGRESS.md).
 
 ## Design goals
 
@@ -30,7 +30,10 @@ make up           # start Postgres+pgvector, MLflow, Ollama, HAPI FHIR; waits un
 make seed         # ~2,000 synthetic members + 23 edge cases -> HAPI FHIR -> NDJSON export
 make pipeline     # bronze/silver/gold + care-gap detection with local PySpark
 make sync-gaps    # load members and care gaps into Postgres
-make pull-model   # optional now, needed from Phase 3: pulls qwen2.5:3b (~2 GB)
+make pull-model   # qwen2.5:3b for Ollama (~2 GB)
+make prompts-register   # register prompts/*.yaml in MLflow
+make serve        # core service API on http://localhost:8000 (docs at /docs)
+make eval-rules   # compliance eval on 100 members, logged to MLflow
 make check        # lint, typecheck, unit tests
 make test-all     # adds integration tests against the running stack
 ```
@@ -68,6 +71,16 @@ tables in Unity Catalog ([ADR 0004](docs/adr/0004-gap-detection-pipeline.md)):
 2. Set `DATABRICKS_HOST` and `DATABRICKS_TOKEN` in `.env` (or use a CLI profile).
 3. `make pipeline-databricks`: deploys the bundle, uploads the NDJSON to a volume, runs
    the job, downloads the gold snapshot and syncs it into Postgres.
+
+### Outreach scripts and compliance
+
+`POST /scripts {"member_id": ...}` writes a short spoken script for a member's open gaps
+with the local model, checks it against deterministic compliance rules (verbatim
+disclaimer and opt-out, length, no personal details, no diagnosis or drug names), revises
+once with the violations as feedback, and otherwise queues it for human review
+(`GET /reviews`, `POST /reviews/{id}`). Only the member's first name reaches the model.
+Prompts are versioned in MLflow's prompt registry. See
+[ADR 0005](docs/adr/0005-generation-and-compliance.md).
 
 > Upgrading from Phase 0: HAPI moved from H2 to Postgres. Run `make nuke && make up` once
 > so Postgres creates the `hapi` database.

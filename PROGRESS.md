@@ -7,7 +7,7 @@
 | 0 | Scaffold | Approved |
 | 1 | Synthetic data | Approved |
 | 2 | Databricks pipeline + gap detection | Approved |
-| 3 | Core service, generation, compliance | Built; acceptance eval blocked |
+| 3 | Core service, generation, compliance | In review |
 | 4 | Voice (TTS + round trip) | Not started |
 | 5 | Orchestration (n8n + Twilio mock) | Not started |
 | 6 | Multi-customer config | Not started |
@@ -52,33 +52,20 @@
 - [x] Generator: generate -> check -> revise once -> `needs_review`
 - [x] `outreach_scripts` table, FastAPI service (`make serve`), review queue endpoints
 - [x] `make eval-rules` (MLflow logging) with unit tests
-- [ ] **Acceptance: `make eval-rules N=100` with qwen2.5:3b** - blocked, see "Resume here"
+- [x] Acceptance: `make eval-rules N=100` with qwen2.5:3b - first-attempt pass 28%, final 65%, review 35% (MLflow run 6faee595)
 - [ ] Phase report posted, approved
 
 ## Resume here (hand-off between sessions)
-Status: Phase 3 is built, tested (237 tests) and pushed. Only the acceptance eval is left,
-then the Phase 3 report. Decisions approved for Phase 3: defaults in the plan (Claude
-provider now, cautious PHI allowlist: first name only, no diagnosis or drug names; one
-script per member covering at most 2 gaps; built-in Sunrise default profile until Phase 6;
-service runs on the host until Phase 5). Default Claude model changed to claude-opus-5-5.
-
-Blocker: the cloud environment's network policy blocks the model download. The user was
-asked to allow `registry.ollama.ai` and `*.r2.cloudflarestorage.com`.
-
-Next steps:
-1. Rebuild state (the container is ephemeral): start dockerd if needed, `make up`,
-   `make seed` (~18 min), `make pipeline`, `make sync-gaps`, `make prompts-register`.
-2. Get qwen2.5:3b into Ollama. Containers here cannot resolve outside DNS, so fetch the
-   manifest and blobs from registry.ollama.ai on the host and copy them into the ollama
-   volume (`/root/.ollama/models/{manifests,blobs}`); on a normal machine `make pull-model`.
-3. `make eval-rules N=100`, then post the Phase 3 report (template in CLAUDE.md working
-   agreement) with the MLflow metrics, and wait for "approved".
+Status: Phase 3 built, evaluated and reported; waiting for "approved". If a new session
+starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
+`make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`, and
+get qwen2.5:3b into Ollama (here: fetch manifest + blobs from registry.ollama.ai on the
+host and `docker cp` them into `/root/.ollama/models/`, since containers have no DNS).
 
 Environment quirks seen in the cloud container:
 - The Docker daemon is not running after a container restart: `nohup dockerd &`.
-- Docker Hub may rate-limit pulls; the stack's images were pulled fine before.
-- Image builds need no proxy build args; pip inside `docker build` needs the proxy CA
-  (`/root/.ccr/ca-bundle.crt`) for the MLflow image - build it once from a scratch copy.
+- pip inside `docker build` needs the proxy CA (`/root/.ccr/ca-bundle.crt`) for the MLflow
+  image - build it once from a scratch copy with the CA added.
 - Databricks: the token is injected by the environment's network secret; set
   `DATABRICKS_HOST=https://dbc-02701db1-ff8f.cloud.databricks.com` and any placeholder
   `DATABRICKS_TOKEN` in `.env`. Install the Databricks CLI v1.22.1 from GitHub releases.
@@ -108,9 +95,15 @@ Environment quirks seen in the cloud container:
 | 2026-10-22 | Gold-to-Postgres via JSON-lines snapshot | No Spark, Arrow or SQL-warehouse client in the sync path; gold is ~6k rows. |
 | 2026-10-22 | Sync replaces a whole measurement year in one transaction | Idempotent and readers never see a partial year. |
 | 2026-10-22 | `members` holds name, phone and language (synthetic) | Needed for outreach. Approved in Phase 2 plan; PHI allowlist for prompts comes in Phase 3. |
+| 2026-10-22 | Claude provider added now (mock-tested only), default model claude-opus-5-5 | Approved defaults in Phase 3 plan; Opus is $4/$20 per MTok vs Sonnet's $2/$10, still under the $5 cap. |
+| 2026-10-22 | PHI: only the first name reaches the model; no diagnosis or drug names in scripts | Approved in Phase 3 plan. |
+| 2026-10-22 | Strip Synthea's name digits in silver | Found in the first eval trial ("Hello Mickey576"). Phase 2 code change; gap results unchanged. |
 | 2026-10-22 | HAPI default (distroless) image, using its bundled `HealthCheck` probe | The `-tomcat` variant cannot unpack its WAR as non-root and took more than 14 min without ever becoming healthy; the default image is healthy in about 35 s. |
 
 ## Open questions
+- Prompt v1 says "End with these two sentences" but supplies three (two-sentence disclaimer
+  plus opt-out); every eval failure is the dropped "It is not medical advice." Fix now as
+  prompt v2, or keep v1 as the Phase 8 baseline?
 - `members` rows are upserted, never deleted, by the sync: a member who disappears from
   gold keeps their registry row (their care gaps for the year are removed). Revisit with
   outreach history in Phase 5.

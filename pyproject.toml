@@ -11,6 +11,10 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "httpx>=0.28",
     "pyyaml>=6.0",
+    "fastapi>=0.115,<0.158",
+    "uvicorn>=0.30",
+    "mlflow-skinny==3.16.1",
+    "anthropic>=1.17,<2",
 ]
 
 [project.scripts]

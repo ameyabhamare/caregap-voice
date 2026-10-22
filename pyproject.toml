@@ -33,6 +33,7 @@ pipeline = [
     "pyspark==4.0.4",
 ]
 voice = [
+    "av>=14,<19",
     "faster-whisper==1.2.1",
     "kokoro-onnx==0.6.1",
 ]

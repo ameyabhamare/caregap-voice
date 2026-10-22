@@ -7,7 +7,7 @@
 | 0 | Scaffold | Approved |
 | 1 | Synthetic data | Approved |
 | 2 | Databricks pipeline + gap detection | Approved |
-| 3 | Core service, generation, compliance | In review |
+| 3 | Core service, generation, compliance | Approved |
 | 4 | Voice (TTS + round trip) | Not started |
 | 5 | Orchestration (n8n + Twilio mock) | Not started |
 | 6 | Multi-customer config | Not started |
@@ -53,10 +53,10 @@
 - [x] `outreach_scripts` table, FastAPI service (`make serve`), review queue endpoints
 - [x] `make eval-rules` (MLflow logging) with unit tests
 - [x] Acceptance: `make eval-rules N=100` with qwen2.5:3b - first-attempt pass 28%, final 65%, review 35% (MLflow run 6faee595)
-- [ ] Phase report posted, approved
+- [x] Phase report posted, approved (2026-10-22)
 
 ## Resume here (hand-off between sessions)
-Status: Phase 3 built, evaluated and reported; waiting for "approved". If a new session
+Status: Phase 3 approved. Next: Phase 4 plan (voice), waiting for "go". If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`, and
 get qwen2.5:3b into Ollama (here: fetch manifest + blobs from registry.ollama.ai on the
@@ -101,9 +101,8 @@ Environment quirks seen in the cloud container:
 | 2026-10-22 | HAPI default (distroless) image, using its bundled `HealthCheck` probe | The `-tomcat` variant cannot unpack its WAR as non-root and took more than 14 min without ever becoming healthy; the default image is healthy in about 35 s. |
 
 ## Open questions
-- Prompt v1 says "End with these two sentences" but supplies three (two-sentence disclaimer
-  plus opt-out); every eval failure is the dropped "It is not medical advice." Fix now as
-  prompt v2, or keep v1 as the Phase 8 baseline?
+- (Decided) Prompt v1's "two sentences" bug (it supplies three) stays as the Phase 8
+  baseline; fixing it is the first measured prompt iteration in Phase 8.
 - `members` rows are upserted, never deleted, by the sync: a member who disappears from
   gold keeps their registry row (their care gaps for the year are removed). Revisit with
   outreach history in Phase 5.

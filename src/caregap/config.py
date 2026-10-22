@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     # Generated data (Synthea output, NDJSON export, caches). Gitignored.
     data_dir: Path = Path("data")
 
+    # Voice (Phase 4). Kokoro is the only enabled TTS; paid providers are stubs.
+    tts_provider: Literal["kokoro"] = "kokoro"
+    tts_voice: str = "af_heart"
+    tts_pronunciation_overrides: bool = True
+    stt_model: str = "small.en"
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
+import numpy as np
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
@@ -17,6 +19,8 @@ from caregap.outreach.generate import ScriptGenerator
 from caregap.outreach.profile import DEFAULT_PROFILE as P
 from caregap.outreach.store import OutreachStore
 from caregap.prompts import FilePromptStore
+from caregap.voice.base import Audio
+from caregap.voice.render import AudioRenderer
 from tests.unit.llm.fakes import FakeProvider
 
 pytestmark = pytest.mark.integration
@@ -28,7 +32,7 @@ BAD = "Hi Ava, about your diabetes."
 @pytest.fixture
 def db(pg_url: str) -> str:
     with psycopg.connect(pg_url) as conn:
-        conn.execute("TRUNCATE outreach_scripts, care_gaps, members")
+        conn.execute("TRUNCATE script_audio, outreach_scripts, care_gaps, members")
         conn.execute(
             "INSERT INTO members (member_id, given_name, family_name, birth_date, phone)"
             " VALUES ('m-gap', 'Ava', 'Welch179', '1955-04-02', '555-0142'),"
@@ -132,3 +136,43 @@ def test_provider_and_budget_errors_map_to_clear_statuses(db: str) -> None:
         generator=ScriptGenerator(llm, FilePromptStore(), P),
     )
     assert TestClient(app).post("/scripts", json={"member_id": "m-gap"}).status_code == 402
+
+
+class FakeTTS:
+    name = "fake-tts"
+
+    def synthesize(self, text: str, *, voice: str, lang: str = "en-us") -> Audio:
+        return Audio(np.zeros(24000, dtype=np.float32), 24000)
+
+
+def _audio_client(db: str, tmp_path: Path, replies: list[str]) -> TestClient:
+    llm = LLMClient(FakeProvider(replies), CostLedger(InMemoryLedgerStore(), Decimal("5")))
+    renderer = AudioRenderer(db, FakeTTS(), tmp_path, voice="af_heart", overrides_enabled=True)
+    app = create_app(
+        Settings(_env_file=None, database_url=db),
+        store=OutreachStore(db),
+        generator=ScriptGenerator(llm, FilePromptStore(), P),
+        renderer=renderer,
+    )
+    return TestClient(app)
+
+
+def test_render_audio_for_compliant_script(db: str, tmp_path: Path) -> None:
+    client = _audio_client(db, tmp_path, [GOOD])
+    script = client.post("/scripts", json={"member_id": "m-gap"}).json()
+    assert client.get(f"/scripts/{script['id']}/audio").status_code == 404
+
+    r = client.post(f"/scripts/{script['id']}/audio")
+    assert r.status_code == 201
+    body = r.json()
+    assert (body["provider"], body["voice"], body["duration_ms"]) == ("fake-tts", "af_heart", 1000)
+    wav = client.get(body["url"])
+    assert wav.headers["content-type"] == "audio/wav"
+    assert wav.content[:4] == b"RIFF"
+
+
+def test_render_refuses_scripts_needing_review(db: str, tmp_path: Path) -> None:
+    client = _audio_client(db, tmp_path, [BAD, BAD])
+    script = client.post("/scripts", json={"member_id": "m-gap"}).json()
+    assert client.post(f"/scripts/{script['id']}/audio").status_code == 409
+    assert client.post("/scripts/999999/audio").status_code == 404

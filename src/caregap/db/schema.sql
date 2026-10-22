@@ -77,3 +77,18 @@ CREATE TABLE IF NOT EXISTS outreach_scripts (
 
 CREATE INDEX IF NOT EXISTS outreach_scripts_review_idx
     ON outreach_scripts (created_at) WHERE status = 'needs_review';
+
+-- Rendered audio for outreach scripts (files live under data/audio until Phase 11).
+CREATE TABLE IF NOT EXISTS script_audio (
+    id                      BIGSERIAL PRIMARY KEY,
+    script_id               BIGINT NOT NULL REFERENCES outreach_scripts (id),
+    provider                TEXT NOT NULL,
+    voice                   TEXT NOT NULL,
+    pronunciation_overrides BOOLEAN NOT NULL,
+    path                    TEXT NOT NULL,
+    duration_ms             INTEGER NOT NULL,
+    latency_ms              INTEGER NOT NULL,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS script_audio_script_idx ON script_audio (script_id, created_at);

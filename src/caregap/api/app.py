@@ -9,6 +9,8 @@ Endpoints:
     GET  /scripts/{script_id}
     GET  /reviews                    scripts waiting for human review
     POST /reviews/{script_id}        approve or reject a script
+    POST /scripts/{script_id}/audio  render a compliant or approved script to speech
+    GET  /scripts/{script_id}/audio  the latest rendered WAV
 """
 
 from __future__ import annotations
@@ -17,7 +19,7 @@ from datetime import date, datetime
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from caregap.config import Settings, get_settings
@@ -26,6 +28,7 @@ from caregap.llm.base import ProviderError
 from caregap.outreach.generate import ScriptGenerator
 from caregap.outreach.profile import DEFAULT_PROFILE
 from caregap.outreach.store import NotFoundError, OutreachStore, ReviewConflictError
+from caregap.voice.render import AudioRenderer, NotRenderableError, RenderedAudio, latest_audio
 
 DEFAULT_YEAR = 2025
 
@@ -70,6 +73,21 @@ class ReviewRequest(BaseModel):
     note: str | None = None
 
 
+class AudioOut(BaseModel):
+    id: int
+    script_id: int
+    provider: str
+    voice: str
+    pronunciation_overrides: bool
+    duration_ms: int
+    latency_ms: int
+    url: str
+
+
+def _audio_out(a: RenderedAudio) -> AudioOut:
+    return AudioOut(**{**vars(a), "url": f"/scripts/{a.script_id}/audio"})
+
+
 def _script_out(row: dict[str, Any]) -> ScriptOut:
     return ScriptOut(**{**row, "attempts": len(row["attempts"])})
 
@@ -79,6 +97,7 @@ def create_app(
     *,
     store: OutreachStore | None = None,
     generator: ScriptGenerator | None = None,
+    renderer: AudioRenderer | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     store = store or OutreachStore(settings.database_url)
@@ -96,6 +115,24 @@ def create_app(
             max_output_tokens=max_tokens,
         )
     gen = generator
+    cfg = settings
+    renderers: list[AudioRenderer] = [renderer] if renderer else []
+
+    def get_renderer() -> AudioRenderer:
+        # The TTS model loads on first use, so the service starts without model files.
+        if not renderers:
+            from caregap.voice.render import build_tts
+
+            renderers.append(
+                AudioRenderer(
+                    cfg.database_url,
+                    build_tts(cfg.data_dir, overrides=cfg.tts_pronunciation_overrides),
+                    cfg.data_dir / "audio",
+                    voice=cfg.tts_voice,
+                    overrides_enabled=cfg.tts_pronunciation_overrides,
+                )
+            )
+        return renderers[0]
 
     app = FastAPI(title="CareGap Voice core service", version="0.1.0")
 
@@ -156,5 +193,21 @@ def create_app(
         except ReviewConflictError as exc:
             raise HTTPException(409, str(exc)) from exc
         return _script_out(store.script(script_id))
+
+    @app.post("/scripts/{script_id}/audio", status_code=201)
+    def render_audio(script_id: int) -> AudioOut:
+        try:
+            return _audio_out(get_renderer().render(store.script(script_id)))
+        except NotFoundError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except NotRenderableError as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+    @app.get("/scripts/{script_id}/audio")
+    def get_audio(script_id: int) -> FileResponse:
+        audio = latest_audio(cfg.database_url, script_id)
+        if audio is None:
+            raise HTTPException(404, f"no audio rendered for script {script_id}")
+        return FileResponse(audio.path, media_type="audio/wav")
 
     return app

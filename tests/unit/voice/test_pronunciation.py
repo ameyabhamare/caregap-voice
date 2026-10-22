@@ -6,7 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from caregap.voice.pronunciation import Pronunciation, PronunciationDict
+from caregap.voice.pronunciation import (
+    IPA_VOWELS,
+    STRESS_MARKS,
+    Pronunciation,
+    PronunciationDict,
+)
 
 D = PronunciationDict.load()
 
@@ -69,3 +74,12 @@ def test_name_sentences_cover_every_term_and_contain_their_names() -> None:
         for name in s["names"]:
             joined = " ".join(tokens(s["text"]))
             assert " ".join(tokens(name)) in joined, (name, s["text"])
+
+
+def test_stress_marks_sit_directly_before_a_vowel_like_espeak() -> None:
+    # Kokoro learned espeak's convention (stress mark before the vowel). Marks before a
+    # consonant made it insert stray vowels ("a torvastatin") in the first voice eval.
+    for e in D.entries.values():
+        for i, ch in enumerate(e.ipa):
+            if ch in STRESS_MARKS:
+                assert i + 1 < len(e.ipa) and e.ipa[i + 1] in IPA_VOWELS, (e.term, e.ipa)

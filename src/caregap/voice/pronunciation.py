@@ -18,6 +18,11 @@ from pydantic import BaseModel, ConfigDict
 
 DEFAULT_PATH = Path("voice/pronunciations.yaml")
 
+#: IPA vowel symbols in Kokoro's phoneme set. espeak (and so Kokoro) puts a stress mark
+#: directly before the stressed vowel, never before the syllable onset.
+IPA_VOWELS = frozenset("aeiouæɑɐɒɔəɚɛɜɪʊʌ")  # noqa: RUF001 - IPA, not Latin look-alikes
+STRESS_MARKS = frozenset("ˈˌ")
+
 
 class Pronunciation(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

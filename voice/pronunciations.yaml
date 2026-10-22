@@ -1,30 +1,31 @@
 # Pronunciation overrides for drug and plan names (US English).
-#   ipa:        Kokoro phoneme set (espeak-style IPA with ˈ primary / ˌ secondary stress)
+#   ipa:        Kokoro phoneme set, espeak conventions: stress marks (ˈ primary, ˌ secondary)
+#               go directly before the stressed vowel, not before the syllable onset
 #   respelling: plain text for providers that only accept text
 # Measured by `make eval-voice` (name WER with vs without overrides).
 entries:
   # --- medications -------------------------------------------------------------
-  - {term: atorvastatin,        kind: medication, ipa: "əˌtɔːɹvəˈstætɪn",          respelling: "uh-tor-vuh-STAT-in"}
-  - {term: simvastatin,         kind: medication, ipa: "ˌsɪmvəˈstætɪn",            respelling: "sim-vuh-STAT-in"}
-  - {term: rosuvastatin,        kind: medication, ipa: "ɹoʊˌsuːvəˈstætɪn",         respelling: "roh-soo-vuh-STAT-in"}
-  - {term: pravastatin,         kind: medication, ipa: "ˌpɹævəˈstætɪn",            respelling: "prav-uh-STAT-in"}
-  - {term: lovastatin,          kind: medication, ipa: "ˌloʊvəˈstætɪn",            respelling: "loh-vuh-STAT-in"}
-  - {term: metformin,           kind: medication, ipa: "mɛtˈfɔːɹmɪn",              respelling: "met-FOR-min"}
-  - {term: lisinopril,          kind: medication, ipa: "laɪˈsɪnəpɹɪl",             respelling: "lye-SIN-oh-pril"}
-  - {term: amlodipine,          kind: medication, ipa: "æmˈloʊdɪpiːn",             respelling: "am-LOH-dih-peen"}
-  - {term: hydrochlorothiazide, kind: medication, ipa: "ˌhaɪdɹoʊˌklɔːɹoʊˈθaɪəzaɪd", respelling: "hy-droh-klor-oh-THY-uh-zide"}
-  - {term: levothyroxine,       kind: medication, ipa: "ˌliːvoʊθaɪˈɹɑːksiːn",      respelling: "lee-voh-thy-ROX-een"}
-  - {term: losartan,            kind: medication, ipa: "loʊˈsɑːɹtən",              respelling: "loh-SAR-tan"}
-  - {term: metoprolol,          kind: medication, ipa: "məˈtoʊpɹəlɔːl",            respelling: "meh-TOH-pruh-lawl"}
-  - {term: gabapentin,          kind: medication, ipa: "ˌɡæbəˈpɛntɪn",             respelling: "gab-uh-PEN-tin"}
-  - {term: clopidogrel,         kind: medication, ipa: "kloʊˈpɪdəɡɹɛl",            respelling: "kloh-PID-oh-grel"}
-  - {term: warfarin,            kind: medication, ipa: "ˈwɔːɹfəɹɪn",               respelling: "WOR-fuh-rin"}
-  - {term: omeprazole,          kind: medication, ipa: "oʊˈmɛpɹəzoʊl",             respelling: "oh-MEP-ruh-zole"}
-  - {term: albuterol,           kind: medication, ipa: "ælˈbjuːtəɹɔːl",            respelling: "al-BYOO-tuh-rawl"}
-  - {term: sertraline,          kind: medication, ipa: "ˈsɜːɹtɹəliːn",             respelling: "SUR-truh-leen"}
-  - {term: acetaminophen,       kind: medication, ipa: "əˌsiːtəˈmɪnəfən",          respelling: "uh-see-tuh-MIN-oh-fen"}
-  - {term: nitroglycerin,       kind: medication, ipa: "ˌnaɪtɹoʊˈɡlɪsəɹɪn",        respelling: "ny-troh-GLIS-er-in"}
-  - {term: fluticasone,         kind: medication, ipa: "fluːˈtɪkəsoʊn",            respelling: "floo-TIK-uh-sone"}
+  - {term: atorvastatin,        kind: medication, ipa: "ətˌɔːɹvəstˈætɪn",          respelling: "uh-tor-vuh-STAT-in"}
+  - {term: simvastatin,         kind: medication, ipa: "sˌɪmvəstˈætɪn",            respelling: "sim-vuh-STAT-in"}
+  - {term: rosuvastatin,        kind: medication, ipa: "ɹoʊsˌuːvəstˈætɪn",         respelling: "roh-soo-vuh-STAT-in"}
+  - {term: pravastatin,         kind: medication, ipa: "pɹˌævəstˈætɪn",            respelling: "prav-uh-STAT-in"}
+  - {term: lovastatin,          kind: medication, ipa: "lˌoʊvəstˈætɪn",            respelling: "loh-vuh-STAT-in"}
+  - {term: metformin,           kind: medication, ipa: "mɛtfˈɔːɹmɪn",              respelling: "met-FOR-min"}
+  - {term: lisinopril,          kind: medication, ipa: "laɪsˈɪnəpɹɪl",             respelling: "lye-SIN-oh-pril"}
+  - {term: amlodipine,          kind: medication, ipa: "æmlˈoʊdɪpiːn",             respelling: "am-LOH-dih-peen"}
+  - {term: hydrochlorothiazide, kind: medication, ipa: "hˌaɪdɹoʊklˌɔːɹoʊθˈaɪəzaɪd", respelling: "hy-droh-klor-oh-THY-uh-zide"}
+  - {term: levothyroxine,       kind: medication, ipa: "lˌiːvoʊθaɪɹˈɑːksiːn",      respelling: "lee-voh-thy-ROX-een"}
+  - {term: losartan,            kind: medication, ipa: "loʊsˈɑːɹtən",              respelling: "loh-SAR-tan"}
+  - {term: metoprolol,          kind: medication, ipa: "mətˈoʊpɹəlɔːl",            respelling: "meh-TOH-pruh-lawl"}
+  - {term: gabapentin,          kind: medication, ipa: "ɡˌæbəpˈɛntɪn",             respelling: "gab-uh-PEN-tin"}
+  - {term: clopidogrel,         kind: medication, ipa: "kloʊpˈɪdəɡɹɛl",            respelling: "kloh-PID-oh-grel"}
+  - {term: warfarin,            kind: medication, ipa: "wˈɔːɹfəɹɪn",               respelling: "WOR-fuh-rin"}
+  - {term: omeprazole,          kind: medication, ipa: "oʊmˈɛpɹəzoʊl",             respelling: "oh-MEP-ruh-zole"}
+  - {term: albuterol,           kind: medication, ipa: "ælbjˈuːtəɹɔːl",            respelling: "al-BYOO-tuh-rawl"}
+  - {term: sertraline,          kind: medication, ipa: "sˈɜːɹtɹəliːn",             respelling: "SUR-truh-leen"}
+  - {term: acetaminophen,       kind: medication, ipa: "əsˌiːtəmˈɪnəfən",          respelling: "uh-see-tuh-MIN-oh-fen"}
+  - {term: nitroglycerin,       kind: medication, ipa: "nˌaɪtɹoʊɡlˈɪsəɹɪn",        respelling: "ny-troh-GLIS-er-in"}
+  - {term: fluticasone,         kind: medication, ipa: "fluːtˈɪkəsoʊn",            respelling: "floo-TIK-uh-sone"}
   - {term: insulin,             kind: medication, ipa: "ˈɪnsəlɪn",                 respelling: "IN-suh-lin"}
   # --- plan names ----------------------------------------------------------------
   - {term: Sunrise Medicare Advantage, kind: plan, ipa: "sˈʌnɹaɪz mˈɛdɪkɛɹ ədvˈæntɪdʒ", respelling: "Sunrise Medicare Advantage"}

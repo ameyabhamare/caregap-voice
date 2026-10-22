@@ -86,18 +86,26 @@ class NameHit:
 
 
 def name_hits(reference: str, hypothesis: str, names: list[str]) -> list[NameHit]:
-    """Score each occurrence of each name in the reference."""
+    """Score each occurrence of each name in the reference.
+
+    ``heard`` is every hypothesis word between the words aligned just before and just
+    after the name, so a name heard as several words ("lice in a pill") reads in full.
+    """
     ref, hyp = tokens(reference), tokens(hypothesis)
     ops = align(ref, hyp)
-    by_ref = {o.ref: o for o in ops if o.ref is not None}
+    pos = {o.ref: k for k, o in enumerate(ops) if o.ref is not None}
     hits: list[NameHit] = []
     for name in names:
         name_toks = tokens(name)
         for start in range(len(ref) - len(name_toks) + 1):
             if ref[start : start + len(name_toks)] != name_toks:
                 continue
-            span = [by_ref[k] for k in range(start, start + len(name_toks))]
+            first, last = pos[start], pos[start + len(name_toks) - 1]
+            span = [ops[pos[k]] for k in range(start, start + len(name_toks))]
             errs = sum(o.kind in ("S", "D") for o in span)
-            heard = " ".join(hyp[o.hyp] for o in span if o.hyp is not None)
-            hits.append(NameHit(name, errs == 0, errs, heard))
+            before = [o.hyp for o in ops[:first] if o.hyp is not None and o.kind != "I"]
+            after = [o.hyp for o in ops[last + 1 :] if o.hyp is not None and o.kind != "I"]
+            lo = before[-1] + 1 if before else 0
+            hi = after[0] if after else len(hyp)
+            hits.append(NameHit(name, errs == 0, errs, " ".join(hyp[lo:hi])))
     return hits

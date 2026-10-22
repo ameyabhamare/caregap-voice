@@ -42,3 +42,10 @@ def test_multi_word_name_partly_wrong() -> None:
     (hit,) = name_hits("Horizon ACA Marketplace plan", "horizon aka marketplace plan",
                        ["Horizon ACA Marketplace"])  # fmt: skip
     assert (hit.correct, hit.word_errors, hit.heard) == (False, 1, "horizon aka marketplace")
+
+
+def test_heard_includes_words_inserted_around_the_name() -> None:
+    (hit,) = name_hits(
+        "take your lisinopril daily", "take your lice in a pill daily", ["lisinopril"]
+    )
+    assert (hit.correct, hit.heard) == (False, "lice in a pill")

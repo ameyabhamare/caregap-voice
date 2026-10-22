@@ -68,6 +68,10 @@ strict = true
 files = ["src", "tests"]
 plugins = ["pydantic.mypy"]
 
+[[tool.mypy.overrides]]
+module = ["faster_whisper", "faster_whisper.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers -m 'not integration and not models'"

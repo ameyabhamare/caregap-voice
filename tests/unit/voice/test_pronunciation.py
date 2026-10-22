@@ -54,3 +54,17 @@ def test_duplicate_terms_rejected() -> None:
     e = Pronunciation(term="x", kind="medication", ipa="ɛks", respelling="ex")
     with pytest.raises(ValueError, match="duplicate"):
         PronunciationDict([e, e.model_copy(update={"term": "X"})])
+
+
+def test_name_sentences_cover_every_term_and_contain_their_names() -> None:
+    import yaml
+
+    from caregap.voice.wer import tokens
+
+    data = yaml.safe_load(open("fixtures/voice/name_sentences.yaml"))
+    covered = {n.lower() for s in data["sentences"] for n in s["names"]}
+    assert covered == set(D.entries)
+    for s in data["sentences"]:
+        for name in s["names"]:
+            joined = " ".join(tokens(s["text"]))
+            assert " ".join(tokens(name)) in joined, (name, s["text"])

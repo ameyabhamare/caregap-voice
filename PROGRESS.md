@@ -8,7 +8,7 @@
 | 1 | Synthetic data | Approved |
 | 2 | Databricks pipeline + gap detection | Approved |
 | 3 | Core service, generation, compliance | Approved |
-| 4 | Voice (TTS + round trip) | Built; eval blocked on network |
+| 4 | Voice (TTS + round trip) | In review |
 | 5 | Orchestration (n8n + Twilio mock) | Not started |
 | 6 | Multi-customer config | Not started |
 | 7 | RAG callback agent + hallucination analysis | Not started |
@@ -62,14 +62,13 @@
 - [x] STT (faster-whisper small.en), aligned WER with name attribution, 56 name sentences
 - [x] `script_audio` table, `POST/GET /scripts/{id}/audio`
 - [x] `make eval-voice` with unit tests (fakes)
-- [ ] **Acceptance: real `make eval-voice` run** - blocked: Hugging Face (Whisper models)
-      is not reachable; user asked to allow `huggingface.co`, `*.huggingface.co`, `*.hf.co`
+- [x] Acceptance: `make eval-voice` - script WER 2.3% (100 scripts); medication name accuracy
+      54.5% -> 88.6% with overrides (dictionary v2, MLflow run 1431b6ee); plan names 100% both
+- [x] Dictionary v1 made names worse (54.5% -> 36.4%, run e5edd9b9): stress-mark convention bug, fixed
 - [ ] Phase report posted, approved
 
 ## Resume here (hand-off between sessions)
-Status: Phase 4 built and tested; the real eval-voice run is blocked on Hugging Face access.
-Once allowed: `make eval-voice` (~30-45 min; downloads faster-whisper small.en to
-data/cache/whisper), then post the Phase 4 report. If a new session
+Status: Phase 4 evaluated and reported; waiting for "approved". If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`, and
 get qwen2.5:3b into Ollama (here: fetch manifest + blobs from registry.ollama.ai on the
@@ -112,6 +111,9 @@ Environment quirks seen in the cloud container:
 | 2026-10-22 | Claude provider added now (mock-tested only), default model claude-opus-5-5 | Approved defaults in Phase 3 plan; Opus is $4/$20 per MTok vs Sonnet's $2/$10, still under the $5 cap. |
 | 2026-10-22 | PHI: only the first name reaches the model; no diagnosis or drug names in scripts | Approved in Phase 3 plan. |
 | 2026-10-22 | Strip Synthea's name digits in silver | Found in the first eval trial ("Hello Mickey576"). Phase 2 code change; gap results unchanged. |
+| 2026-10-22 | kokoro-onnx (no PyTorch) for TTS, faster-whisper small.en for STT | Approved in Phase 4 plan. ADR 0006. |
+| 2026-10-22 | PyAV pinned <19 | PyAV 19 removed an argument faster-whisper 1.2.1 passes; every transcription crashed. |
+| 2026-10-22 | Override IPA follows espeak's stress convention (mark before the vowel) | v1 used dictionary convention and made names worse; v2 fixed it (+34 points). Test enforces it. |
 | 2026-10-22 | HAPI default (distroless) image, using its bundled `HealthCheck` probe | The `-tomcat` variant cannot unpack its WAR as non-root and took more than 14 min without ever becoming healthy; the default image is healthy in about 35 s. |
 
 ## Open questions

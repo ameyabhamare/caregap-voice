@@ -8,7 +8,7 @@ questions from plan benefit documents.
 > **All data is synthetic.** Members are generated with [Synthea](https://synthetichealth.github.io/synthea/).
 > There is no real PHI anywhere in this repository, its fixtures, or its demo recordings.
 
-**Status:** Phase 3 (core service, generation, compliance). See [PROGRESS.md](PROGRESS.md).
+**Status:** Phase 4 (voice). See [PROGRESS.md](PROGRESS.md).
 
 ## Design goals
 
@@ -34,6 +34,7 @@ make pull-model   # qwen2.5:3b for Ollama (~2 GB)
 make prompts-register   # register prompts/*.yaml in MLflow
 make serve        # core service API on http://localhost:8000 (docs at /docs)
 make eval-rules   # compliance eval on 100 members, logged to MLflow
+make eval-voice   # TTS -> STT round trip: WER, drug/plan name accuracy with/without overrides
 make check        # lint, typecheck, unit tests
 make test-all     # adds integration tests against the running stack
 ```
@@ -81,6 +82,20 @@ once with the violations as feedback, and otherwise queues it for human review
 (`GET /reviews`, `POST /reviews/{id}`). Only the member's first name reaches the model.
 Prompts are versioned in MLflow's prompt registry. See
 [ADR 0005](docs/adr/0005-generation-and-compliance.md).
+
+### Voice
+
+Scripts are rendered with **Kokoro** (local, via ONNX Runtime) on request
+(`POST /scripts/{id}/audio`). Drug and plan names use a pronunciation override dictionary
+([voice/pronunciations.yaml](voice/pronunciations.yaml)). A round-trip eval transcribes the
+audio with faster-whisper and measures word error rate. See
+[ADR 0006](docs/adr/0006-tts-strategy.md).
+
+| Round-trip result (Kokoro af_heart, Whisper small.en) | Without overrides | With overrides |
+|---|---|---|
+| Outreach scripts, corpus WER (100 scripts) | - | 2.3% |
+| Medication names transcribed exactly (44) | 54.5% | 88.6% |
+| Plan names transcribed exactly (13) | 100% | 100% |
 
 > Upgrading from Phase 0: HAPI moved from H2 to Postgres. Run `make nuke && make up` once
 > so Postgres creates the `hapi` database.

@@ -83,16 +83,23 @@ seed-verify: ## Seed twice from an empty FHIR server and check the exports are i
 	$(MAKE) reset-fhir seed
 	$(UV) python -m caregap.data.validate data/manifest.run1.json data/export/manifest.json
 
+# --- pipeline and gap detection (Phase 2) -------------------------------------
+MEASUREMENT_YEAR ?= 2025
+
+.PHONY: pipeline sync-gaps
+pipeline: ## Bronze/silver/gold + gap detection locally (PySpark, Parquet in data/lake)
+	$(UV) python -m caregap.pipeline.job --layer all --source data/export \
+		--lake data/lake --year $(MEASUREMENT_YEAR)
+
+sync-gaps: ## Load the gold snapshot (members, care gaps) into Postgres
+	$(UV) python -m caregap.gaps.sync data/lake/snapshot
+
 # --- later phases (placeholders) ---------------------------------------------
 define todo
 	@echo "make $@: not implemented yet ($(1))"; exit 1
 endef
 
-.PHONY: pipeline sync-gaps eval eval-voice run-campaign dashboard
-pipeline: ## [Phase 2] Run Databricks medallion pipeline
-	$(call todo,Phase 2)
-sync-gaps: ## [Phase 2] Sync gold gap tables into local Postgres
-	$(call todo,Phase 2)
+.PHONY: eval eval-voice run-campaign dashboard
 eval: ## [Phase 3/8] Run eval suite
 	$(call todo,Phase 3)
 eval-voice: ## [Phase 4] TTS round-trip WER eval

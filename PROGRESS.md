@@ -31,7 +31,8 @@
 | 2026-10-22 | uv, Python 3.12 | Approved in Phase 0 plan. 3.12 has the widest support among later deps. |
 | 2026-10-22 | Default local model `qwen2.5:3b` | Approved. Small, CPU-friendly, good at following instructions. |
 | 2026-10-22 | MLflow tracking store in a separate `mlflow` DB on the same Postgres | One Postgres to run. Approved. |
-| 2026-10-22 | HAPI FHIR on H2 (file, named volume) | Approved; revisit in Phase 1. |
+| 2026-10-22 | HAPI FHIR on H2 (file, named volume) | Superseded in Phase 1: moved to Postgres. |
+| 2026-10-22 | HAPI FHIR persists to a `hapi` database on the shared Postgres | ~700k resources and bulk export are beyond what H2 handles well. Approved in Phase 1 plan. |
 | 2026-10-22 | Ledger reserves worst-case cost before a call, settles actual after | Concurrent calls can't overspend; see ADR 0002. |
 | 2026-10-22 | Failed call with no usage report is charged at the estimate | The cap must overcount, never undercount. |
 | 2026-10-22 | Local ($0) calls allowed even after the cap is hit | The default stack must keep working; they are still logged. |

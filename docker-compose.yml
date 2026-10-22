@@ -60,17 +60,22 @@ services:
 
   hapi-fhir:
     image: hapiproject/hapi:v8.10.0-3
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
-      # H2 file database in a named volume (fine at ~2k members; revisit in Phase 1).
-      # The image runs as uid 65532; /home/nonroot is the dir it owns, so the volume
-      # mounts there and inherits that ownership.
-      spring.datasource.url: jdbc:h2:file:/home/nonroot/h2/hapi
+      # Persistence in the "hapi" database on the shared Postgres (see ADR 0003).
+      spring.datasource.url: jdbc:postgresql://postgres:5432/hapi
+      spring.datasource.username: ${POSTGRES_USER:-caregap}
+      spring.datasource.password: ${POSTGRES_PASSWORD:-caregap}
+      spring.datasource.driverClassName: org.postgresql.Driver
+      spring.jpa.properties.hibernate.dialect: ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgresDialect
       hapi.fhir.fhir_version: R4
       hapi.fhir.bulk_export_enabled: "true"
+      # The loader PUTs resources with Synthea's UUIDs so IDs are stable across runs.
+      hapi.fhir.client_id_strategy: ANY
     ports:
       - "127.0.0.1:${FHIR_PORT:-8080}:8080"
-    volumes:
-      - hapidata:/home/nonroot
     healthcheck:
       # Distroless image: no shell or curl. It ships this Actuator /health probe.
       test: ["CMD", "java", "-cp", "/app", "HealthCheck"]
@@ -83,4 +88,3 @@ volumes:
   pgdata:
   mlartifacts:
   ollama:
-  hapidata:

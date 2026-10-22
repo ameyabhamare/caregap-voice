@@ -72,9 +72,11 @@ def members(bronze: DataFrame) -> DataFrame:
         # BCP 47 tags like "en-US" -> "en"; default English when absent.
         F.coalesce(F.lower(F.substring(language, 1, 2)), F.lit("en")).alias("language"),
         phone.alias("phone"),
-        F.exists("r.identifier", lambda i: i["system"] == EDGE_CASE_IDENTIFIER_SYSTEM).alias(
-            "is_edge_case"
-        ),
+        # exists() is null when the patient has no identifiers at all.
+        F.coalesce(
+            F.exists("r.identifier", lambda i: i["system"] == EDGE_CASE_IDENTIFIER_SYSTEM),
+            F.lit(False),
+        ).alias("is_edge_case"),
     )
 
 

@@ -16,10 +16,13 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from caregap.config import Settings, get_settings
+from caregap.cost import BudgetExceededError
+from caregap.llm.base import ProviderError
 from caregap.outreach.generate import ScriptGenerator
 from caregap.outreach.profile import DEFAULT_PROFILE
 from caregap.outreach.store import NotFoundError, OutreachStore, ReviewConflictError
@@ -95,6 +98,14 @@ def create_app(
     gen = generator
 
     app = FastAPI(title="CareGap Voice core service", version="0.1.0")
+
+    @app.exception_handler(ProviderError)
+    def provider_error(_: Request, exc: ProviderError) -> JSONResponse:
+        return JSONResponse({"detail": f"model provider unavailable: {exc}"}, status_code=503)
+
+    @app.exception_handler(BudgetExceededError)
+    def budget_exceeded(_: Request, exc: BudgetExceededError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=402)
 
     @app.get("/health")
     def health() -> dict[str, str]:

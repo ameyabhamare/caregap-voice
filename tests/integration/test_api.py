@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Any
 
 import psycopg
 import pytest
@@ -11,7 +12,7 @@ from fastapi.testclient import TestClient
 from caregap.api.app import create_app
 from caregap.config import Settings
 from caregap.cost import CostLedger, InMemoryLedgerStore
-from caregap.llm.base import LLMClient
+from caregap.llm.base import LLMClient, ProviderError
 from caregap.outreach.generate import ScriptGenerator
 from caregap.outreach.profile import DEFAULT_PROFILE as P
 from caregap.outreach.store import OutreachStore
@@ -42,7 +43,7 @@ def db(pg_url: str) -> str:
     return pg_url
 
 
-def _client(db: str, replies: list[str]) -> tuple[TestClient, FakeProvider]:
+def _client(db: str, replies: Any) -> tuple[TestClient, FakeProvider]:
     provider = FakeProvider(replies)
     llm = LLMClient(provider, CostLedger(InMemoryLedgerStore(), Decimal("5")))
     app = create_app(
@@ -112,3 +113,22 @@ def test_member_without_open_gaps_or_unknown(db: str) -> None:
     assert client.post("/scripts", json={"member_id": "m-none"}).status_code == 409
     assert client.post("/scripts", json={"member_id": "nobody"}).status_code == 404
     assert provider.calls == []
+
+
+def test_provider_and_budget_errors_map_to_clear_statuses(db: str) -> None:
+    def down(_: object) -> str:
+        raise ProviderError("Ollama unreachable")
+
+    client, _ = _client(db, down)
+    r = client.post("/scripts", json={"member_id": "m-gap"})
+    assert r.status_code == 503
+    assert "unreachable" in r.json()["detail"]
+
+    paid = FakeProvider([GOOD], name="claude", model="claude-opus-5-5")
+    llm = LLMClient(paid, CostLedger(InMemoryLedgerStore(), Decimal("0")))
+    app = create_app(
+        Settings(_env_file=None, database_url=db),
+        store=OutreachStore(db),
+        generator=ScriptGenerator(llm, FilePromptStore(), P),
+    )
+    assert TestClient(app).post("/scripts", json={"member_id": "m-gap"}).status_code == 402

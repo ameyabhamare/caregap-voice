@@ -24,7 +24,8 @@ class Settings(BaseSettings):
     ollama_model: str = "qwen2.5:3b"
 
     anthropic_api_key: SecretStr | None = None
-    claude_model: str = "claude-sonnet-5-5"
+    claude_model: str = "claude-opus-5-5"
+    claude_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
 
     mlflow_tracking_uri: str = "http://localhost:5000"
     fhir_base_url: str = "http://localhost:8080/fhir"

@@ -14,9 +14,8 @@ You are continuing the CareGap Voice project. Before doing anything else, read, 
    section with environment quirks and how to rebuild local state.
 4. `docs/adr/` - decisions so far (0001-0007).
 
-State: Phases 0-4 are approved. Phase 5 (n8n + Twilio mock) is built and its phase report
-is posted; wait for "approved" (or fix what the owner raises) before posting the Phase 6
-plan (multi-customer config).
+State: Phases 0-5 are approved. Your next action is to **post the Phase 6 plan
+(multi-customer config) and wait for "go"**. Do not write Phase 6 code before then.
 
 Things the owner has told us that are not obvious from the repo:
 - Reports use the five-section format in BRIEF.md; be concise and honest, including when

@@ -9,7 +9,7 @@
 | 2 | Databricks pipeline + gap detection | Approved |
 | 3 | Core service, generation, compliance | Approved |
 | 4 | Voice (TTS + round trip) | Approved |
-| 5 | Orchestration (n8n + Twilio mock) | Built, report posted |
+| 5 | Orchestration (n8n + Twilio mock) | Approved |
 | 6 | Multi-customer config | Not started |
 | 7 | RAG callback agent + hallucination analysis | Not started |
 | 8 | LLM-as-a-Judge, prompt iteration, CI gate | Not started |
@@ -79,10 +79,10 @@
 - [x] Four n8n workflows (tick, Twilio callbacks, notification delivery, error alerts),
       `make n8n-import` / `make n8n-export`; test keeps them free of business logic
 - [x] `make run-campaign` (20 members) - see the phase report for the run
-- [ ] Approved
+- [x] Phase report posted, approved (2026-10-23)
 
 ## Resume here (hand-off between sessions)
-Status: Phases 0-4 approved; Phase 5 built, report posted, waiting for "approved".
+Status: Phases 0-5 approved. Next: post the Phase 6 plan and wait for "go".
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`, and

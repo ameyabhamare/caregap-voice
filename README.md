@@ -36,6 +36,7 @@ make serve        # core service on the host (dev; compose also runs it as `core
 make eval-rules   # compliance eval on 100 members, logged to MLflow
 make eval-voice   # TTS -> STT round trip: WER, drug/plan name accuracy with/without overrides
 make run-campaign # 20-member campaign end to end: n8n -> core service -> Twilio mock
+make validate-config  # check customers/*.yaml
 make check        # lint, typecheck, unit tests
 make test-all     # adds integration tests against the running stack
 ```
@@ -137,6 +138,43 @@ generation is not deterministic, so counts vary between runs).
 The demo clock (`CAMPAIGN_CLOCK` in `.env`) puts the service inside the call window
 whatever the real time is; leave it empty to use real time. Edit workflows in the n8n UI
 and `make n8n-export` them back into `n8n/workflows/`.
+
+### Customers
+
+Each health plan is one YAML file in [customers/](customers), validated at startup and by
+`make validate-config` (schema and cross-checks in
+[src/caregap/customers.py](src/caregap/customers.py); see
+[ADR 0008](docs/adr/0008-customer-configs.md)). Horizon was added in a commit that
+changes only `customers/horizon.yaml`.
+
+| | Sunrise Medicare Advantage | Horizon ACA Marketplace |
+|---|---|---|
+| Members | 65 and over | under 65 |
+| Care gaps | wellness visit, eye exam, statin refills | eye exam, statin refills |
+| Languages | English, Spanish (`ef_dora`) | English |
+| Voice | `af_heart` | `am_michael` |
+| Member data in prompts | first name | none (generic greeting) |
+| Calls | Mon-Sat 9-20, up to 3 calls, opt out with 9 | Mon-Fri 10-19, up to 2 calls, opt out with 8 |
+| Human approval | first 5 per campaign | first 3 per campaign |
+
+```bash
+make run-campaign CUSTOMER=horizon
+make eval-rules N=100 CUSTOMER=horizon
+make eval-rules N=30 CUSTOMER=sunrise LANGUAGE=es
+```
+
+Rule-based compliance (qwen2.5:3b, `make eval-rules`):
+
+| Customer (sample) | First attempt | Final (after one revision) |
+|---|---|---|
+| Sunrise, 100 members (94 English, 6 Spanish) | 27% | 67% |
+| Sunrise, Spanish only (20 members) | 85% | 100% |
+| Horizon, all 72 members with gaps | 75% | 100% |
+
+These are not a controlled comparison: prompts, wording and members all differ. Sunrise
+English failures are still prompt v1's dropped disclaimer (the Phase 8 baseline). The rule
+checks do not cover register: 16 of 20 Spanish scripts use informal "tú" although the
+prompt asks for "usted".
 
 > Upgrading from Phase 0: HAPI moved from H2 to Postgres. Run `make nuke && make up` once
 > so Postgres creates the `hapi` database.

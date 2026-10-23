@@ -12,10 +12,11 @@ You are continuing the CareGap Voice project. Before doing anything else, read, 
 2. `CLAUDE.md` - conventions, layout, commands.
 3. `PROGRESS.md` - phase status, decisions log, open questions, and the "Resume here"
    section with environment quirks and how to rebuild local state.
-4. `docs/adr/` - decisions so far (0001-0007).
+4. `docs/adr/` - decisions so far (0001-0008).
 
-State: Phases 0-5 are approved. Your next action is to **post the Phase 6 plan
-(multi-customer config) and wait for "go"**. Do not write Phase 6 code before then.
+State: Phases 0-5 are approved. Phase 6 (multi-customer config) is built and its report
+posted; wait for "approved" (or fix what the owner raises) before posting the Phase 7 plan
+(RAG callback agent + hallucination analysis).
 
 Things the owner has told us that are not obvious from the repo:
 - Reports use the five-section format in BRIEF.md; be concise and honest, including when
@@ -50,6 +51,10 @@ Phase 5 runs (20 members each): default mock outcomes 8 completed / 11 awaiting 
 `--cover-outcomes` 6 completed, 3 opted out, 1 escalated, 3 failed after 3 calls, 3 awaiting
 review, 4 notifications delivered.
 
-Latest eval numbers (MLflow, local): rule eval first-attempt pass 28%, final 65%
+Phase 6 evals (MLflow rule-evals): Sunrise 27% first / 67% final (run 21a8f5e2),
+Sunrise Spanish 85% / 100% (974cf025), Horizon 75% / 100% (b09ea0ef). Spanish scripts
+mostly use informal "tu" (16/20); not caught by rules.
+
+Latest eval numbers before Phase 6 (MLflow, local): rule eval first-attempt pass 28%, final 65%
 (run 6faee595, all failures = dropped disclaimer sentence); voice: script WER 2.3%,
 medication names 54.5% -> 88.6% with overrides (run 1431b6ee).

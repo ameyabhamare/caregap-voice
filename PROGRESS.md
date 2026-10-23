@@ -10,7 +10,7 @@
 | 3 | Core service, generation, compliance | Approved |
 | 4 | Voice (TTS + round trip) | Approved |
 | 5 | Orchestration (n8n + Twilio mock) | Approved |
-| 6 | Multi-customer config | Not started |
+| 6 | Multi-customer config | Built, report posted |
 | 7 | RAG callback agent + hallucination analysis | Not started |
 | 8 | LLM-as-a-Judge, prompt iteration, CI gate | Not started |
 | 9 | MCP server | Not started |
@@ -81,8 +81,18 @@
 - [x] `make run-campaign` (20 members) - see the phase report for the run
 - [x] Phase report posted, approved (2026-10-23)
 
+## Phase 6: Multi-customer config
+- [x] Customer config schema (pydantic) with per-file and cross-file validation,
+      `make validate-config`, validated at core startup
+- [x] Sunrise config reproducing the Phase 3-5 profile exactly; DEFAULT_PROFILE removed
+- [x] Campaigns, scripts, selection, call windows, DTMF keys, alerts, voices per customer
+- [x] Platform capabilities: Spanish (prompts, compliance terms, TTS) and no-name greeting
+- [x] Sunrise EN + ES (config); Horizon added as a config-only commit (fdd3770)
+- [x] Horizon campaign end to end on unchanged code; per-customer rule evals
+- [ ] Approved
+
 ## Resume here (hand-off between sessions)
-Status: Phases 0-5 approved. Next: post the Phase 6 plan and wait for "go".
+Status: Phases 0-5 approved; Phase 6 built, report posted, waiting for "approved".
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`, and
@@ -148,6 +158,13 @@ Environment quirks seen in the cloud container:
 | 2026-10-23 | n8n 1.121.3 with SQLite (deviation: plan said Postgres) | 1.122+ cannot activate CLI-imported workflows; SQLite avoids creating a DB on existing volumes. |
 | 2026-10-23 | At most 2 scripts generated at once | Found in the first 20-member run: unbounded claims queued 32 requests on Ollama. |
 | 2026-10-23 | `CAMPAIGN_CLOCK` demo clock | `make run-campaign` must work at any real time of day. |
+| 2026-10-23 | One YAML per customer, pydantic-validated, checked at startup | Brief: second customer with zero code changes. ADR 0008. |
+| 2026-10-23 | Membership by age: Sunrise 65+, Horizon under 65 | Stand-in for enrollment data; MA vs ACA. Approved default. |
+| 2026-10-23 | Spanish for Sunrise, not Horizon | 20 Spanish-speaking Sunrise members with gaps vs 3 under 65. Approved default. |
+| 2026-10-23 | Unsupported member languages get the customer's default language | Approved default (about 4% of members). |
+| 2026-10-23 | Language prompts as separate prompt names; English prompts untouched | Keeps prompt v1 as the Phase 8 baseline. |
+| 2026-10-23 | Drug/diagnosis terms checked in every language; accent-insensitive matching | An English drug name in a Spanish script is still a drug name. |
+| 2026-10-23 | Spanish voice WER deferred | small.en is English-only; multilingual Whisper is ~480 MB and disk is tight. Approved default. |
 | 2026-10-22 | HAPI default (distroless) image, using its bundled `HealthCheck` probe | The `-tomcat` variant cannot unpack its WAR as non-root and took more than 14 min without ever becoming healthy; the default image is healthy in about 35 s. |
 
 ## Open questions
@@ -157,8 +174,9 @@ Environment quirks seen in the cloud container:
   gold keeps their registry row (their care gaps for the year are removed). Phase 5 now
   references members from campaigns, so deleting them would also need outreach history
   handling; keeping the upsert-only behaviour.
-- Spoken confirmations after DTMF (opt-out, call-back, goodbye) are in the profile in
-  English only; Phase 6 adds Spanish.
+- Spanish wording, prompts and term lists were written at dev time and need review by a
+  native speaker.
+- No Spanish round-trip (WER) eval yet: needs multilingual Whisper.
 - (Resolved) Edge-case expectations and measure definitions reviewed and accepted.
 - Statin prevalence is high in Synthea (738 of 2,000 members, 37%). Fine for testing; not
   representative of a real plan.

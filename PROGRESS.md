@@ -11,7 +11,7 @@
 | 4 | Voice (TTS + round trip) | Approved |
 | 5 | Orchestration (n8n + Twilio mock) | Approved |
 | 6 | Multi-customer config | Approved |
-| 7 | RAG callback agent + hallucination analysis | Not started |
+| 7 | RAG callback agent + hallucination analysis | Built, report posted |
 | 8 | LLM-as-a-Judge, prompt iteration, CI gate | Not started |
 | 9 | MCP server | Not started |
 | 10 | Observability + governance | Not started |
@@ -92,12 +92,24 @@
 - [x] Voice eval unchanged on the Phase 5 scripts: WER 2.3%, names 54.5% -> 88.6% (de216841)
 - [x] Phase report posted, approved (2026-10-23)
 
+## Phase 7: RAG callback agent + hallucination analysis
+- [x] `rag` dependency group (langchain-core, langchain-text-splitters, pypdf); fpdf2 (dev)
+- [x] Metered local embeddings (Ollama nomic-embed-text) + LangChain adapter
+- [x] Synthetic Summary of Benefits per customer (md -> deterministic PDF), in configs
+- [x] Ingestion into pgvector (one benefit line per chunk), per-customer retriever
+- [x] Callback agent (route -> retrieve -> answer -> grounding check), interaction log,
+      escalations, `POST /callbacks/questions`
+- [x] Golden Q&A (48 Sunrise incl. 6 Spanish, 40 Horizon), `make eval-rag`, MLflow reports
+- [x] Measured iterations: route v2, v3, line chunks (promoted); answer v2 (rolled back)
+- [ ] Owner review of fixtures/qa/*.yaml
+- [ ] Approved
+
 ## Resume here (hand-off between sessions)
-Status: Phases 0-6 approved. Next: post the Phase 7 plan and wait for "go".
+Status: Phases 0-6 approved; Phase 7 built, report posted, waiting for golden Q&A review and "approved".
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
-`make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`, and
-get qwen2.5:3b into Ollama (here: fetch manifest + blobs from registry.ollama.ai on the
+`make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`,
+`make ingest-benefits`, and get qwen2.5:3b and nomic-embed-text into Ollama (here: fetch manifest + blobs from registry.ollama.ai on the
 host and `docker cp` them into `/root/.ollama/models/`, since containers have no DNS).
 
 Environment quirks seen in the cloud container:
@@ -166,6 +178,12 @@ Environment quirks seen in the cloud container:
 | 2026-10-23 | Language prompts as separate prompt names; English prompts untouched | Keeps prompt v1 as the Phase 8 baseline. |
 | 2026-10-23 | Drug/diagnosis terms checked in every language; accent-insensitive matching | An English drug name in a Spanish script is still a drug name. |
 | 2026-10-23 | Spanish voice WER deferred | small.en is English-only; multilingual Whisper is ~480 MB and disk is tight. Approved default. |
+| 2026-10-23 | LangChain core + text splitters only; own pgvector table, own metered model wrappers | Brief names LangChain; langchain-postgres would add SQLAlchemy and its own tables. ADR 0009. |
+| 2026-10-23 | Embeddings always local (Ollama nomic-embed-text), metered at $0 | Claude has no embeddings; keeps the vector store free. |
+| 2026-10-23 | Deterministic grounding check; failures hand off, never retry | A wrong copay is worse than a call back. |
+| 2026-10-23 | One benefit line per chunk, k=8 | Section chunks let same-section amounts mix (ER vs urgent care); +18 points Sunrise. |
+| 2026-10-23 | callback-answer v2 rolled back (alias to v1) | Made both customers worse (Horizon raw hallucinations 4.2% -> 9.1%). |
+| 2026-10-23 | Callback Q&A is a text API this phase | Voice loop for inbound calls deferred to Phase 11. Approved default. |
 | 2026-10-22 | HAPI default (distroless) image, using its bundled `HealthCheck` probe | The `-tomcat` variant cannot unpack its WAR as non-root and took more than 14 min without ever becoming healthy; the default image is healthy in about 35 s. |
 
 ## Open questions
@@ -178,6 +196,10 @@ Environment quirks seen in the cloud container:
 - Spanish wording, prompts and term lists were written at dev time and need review by a
   native speaker.
 - No Spanish round-trip (WER) eval yet: needs multilingual Whisper.
+- Callback answers: amount-level checks miss wrong statements without numbers (2 of 49
+  spoken answers in manual review). Phase 8 judge.
+- Golden Q&A was drafted at dev time and needs owner review; two fact phrasings were
+  widened after seeing outputs (hor-08, hor-28), recorded in git.
 - (Resolved) Edge-case expectations and measure definitions reviewed and accepted.
 - Statin prevalence is high in Synthea (738 of 2,000 members, 37%). Fine for testing; not
   representative of a real plan.

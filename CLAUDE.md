@@ -38,6 +38,8 @@ src/caregap/          Python package
   api/app.py          FastAPI core service (`make serve`, or the `core` compose service)
   campaign/           campaign state machine, consent, call window, clock, run-campaign driver
   telephony/          Twilio wire format (signatures, TwiML) and the local Twilio mock
+  rag/                benefits documents (md -> PDF -> sections), pgvector chunks + retriever,
+                      callback agent with grounding check, callback service
   prompts.py          prompt files <-> MLflow prompt registry
   voice/              TTS (Kokoro), paid stubs, pronunciation overrides, STT, WER, rendering
   evals/              eval suites logged to MLflow (`make eval-rules`, `make eval-voice`)
@@ -45,6 +47,8 @@ voice/pronunciations.yaml  IPA + respelling overrides for drug and plan names
 fixtures/voice/       name sentences for the pronunciation eval
 prompts/              prompt source of truth (YAML); register with `make prompts-register`
 customers/            one YAML per health plan (sunrise, horizon): all behavior differences
+benefits/             synthetic Summary of Benefits per customer (markdown source + committed PDF)
+fixtures/qa/          golden callback Q&A per customer (for owner review)
 fixtures/edge_cases/  hand-built edge-case members with expected gap outcomes
 synthea/              Synthea properties (run parameters are pinned in caregap/data/synthea.py)
 databricks.yml        Databricks Asset Bundle: serverless job running the same pipeline
@@ -68,6 +72,8 @@ docs/adr/             architecture decision records
 - `make eval-rules N=100 CUSTOMER=sunrise [LANGUAGE=es]` runs the rule-based compliance
   eval for one customer and logs to MLflow.
 - `make validate-config` checks every customer config (the core service also does at startup).
+- `make benefits-pdf` after editing `benefits/*.md` (a test fails if the PDFs are stale),
+  then `make ingest-benefits`. `make eval-rag CUSTOMER=...` runs the callback Q&A eval.
 - `make eval-voice` runs the TTS -> STT round trip (WER, name WER before/after overrides).
 - Tests marked `models` load real TTS/STT files from `data/cache`; `make check` skips them.
 - `make run-campaign CUSTOMER=horizon` imports the n8n workflows and runs a 20-member
@@ -89,6 +95,10 @@ docs/adr/             architecture decision records
   runs on Databricks serverless. Local PySpark stays pinned to serverless environment 4.
 - Application code calls models only through `LLMClient` (never a provider directly).
 - Never send sampling parameters to Claude; tune with `CLAUDE_EFFORT`.
+- Callback answers are spoken only after the grounding check in `caregap.rag.agent`; never
+  bypass it. Embeddings go through `EmbeddingClient` (metered), like chat calls.
+- Prompt changes: one change per eval run, promote only on improvement, roll back by
+  moving the `production` alias (and restoring the file).
 - Only `allowed_member_fields` may reach a prompt (validation checks each configured
   prompt's variables against them).
 - Anything that differs between customers goes in `customers/*.yaml`, never in code. A new

@@ -37,6 +37,8 @@ make eval-rules   # compliance eval on 100 members, logged to MLflow
 make eval-voice   # TTS -> STT round trip: WER, drug/plan name accuracy with/without overrides
 make run-campaign # 20-member campaign end to end: n8n -> core service -> Twilio mock
 make validate-config  # check customers/*.yaml
+make ingest-benefits  # embed each plan's Summary of Benefits into pgvector
+make eval-rag CUSTOMER=sunrise  # callback Q&A hallucination report (MLflow)
 make check        # lint, typecheck, unit tests
 make test-all     # adds integration tests against the running stack
 ```
@@ -175,6 +177,35 @@ These are not a controlled comparison: prompts, wording and members all differ. 
 English failures are still prompt v1's dropped disclaimer (the Phase 8 baseline). The rule
 checks do not cover register: 16 of 20 Spanish scripts use informal "tú" although the
 prompt asks for "usted".
+
+### Callback questions (RAG)
+
+`POST /callbacks/questions {customer, question}` answers a member's question from their
+own plan's synthetic Summary of Benefits ([benefits/](benefits), PDFs generated from the
+markdown next to them), or hands it to a person. The flow is route (model) -> retrieve
+(pgvector, one benefit line per chunk, never across plans) -> answer with citations
+(model) -> a grounding check without a model: every amount must be in a cited line and
+no other plan may be named. Medical, member-specific and off-topic questions are refused
+and escalated. See [ADR 0009](docs/adr/0009-callback-rag-and-grounding.md).
+
+Golden Q&A: [fixtures/qa/](fixtures/qa) (48 Sunrise questions, 6 in Spanish; 40 Horizon).
+Final run, qwen2.5:3b + nomic-embed-text (MLflow `rag-evals` a4f8d19e, ec154846):
+
+| | Sunrise | Horizon |
+|---|---|---|
+| Answerable questions answered correctly | 78.8% | 66.7% |
+| Should-refuse questions refused (medical, member, off-topic, not in document) | 100% | 100% |
+| Answerable but handed off (over-refusal) | 21.2% | 30.0% |
+| Spoken answers with a wrong amount or another plan's facts | 0% | 0% |
+| Same, for the model's raw drafts before the check | 0% | 4.3% |
+| Router accuracy / retrieval hit rate | 91.7% / 100% | 90.0% / 100% |
+
+How it got there (one change per run): over-refusal started at 70% because the router
+called cost questions "medical"; router v2 and v3 and line-level chunks brought it down
+and removed same-section amount mix-ups; an answer-prompt change made both customers
+worse and was rolled back. Amount checks do not catch wrong statements without numbers:
+a manual review of the 49 spoken answers found 2 such errors (one contradicts the
+document, one adds "no copay"); the Phase 8 judge is meant to catch those.
 
 > Upgrading from Phase 0: HAPI moved from H2 to Postgres. Run `make nuke && make up` once
 > so Postgres creates the `hapi` database.

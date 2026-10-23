@@ -12,11 +12,12 @@ You are continuing the CareGap Voice project. Before doing anything else, read, 
 2. `CLAUDE.md` - conventions, layout, commands.
 3. `PROGRESS.md` - phase status, decisions log, open questions, and the "Resume here"
    section with environment quirks and how to rebuild local state.
-4. `docs/adr/` - decisions so far (0001-0008).
+4. `docs/adr/` - decisions so far (0001-0009).
 
-State: Phases 0-6 are approved. Your next action is to **post the Phase 7 plan (RAG
-callback agent + hallucination analysis) and wait for "go"**. Do not write Phase 7 code
-before then.
+State: Phases 0-6 are approved. Phase 7 (RAG callback agent) is built and its report
+posted; the owner is asked to review `fixtures/qa/*.yaml`. Apply their changes, rerun
+`make eval-rag` for both customers, and wait for "approved" before posting the Phase 8
+plan (LLM-as-a-Judge, prompt iteration, CI gate).
 
 Things the owner has told us that are not obvious from the repo:
 - Reports use the five-section format in BRIEF.md; be concise and honest, including when
@@ -50,6 +51,11 @@ Environment (cloud container, ephemeral):
 Phase 5 runs (20 members each): default mock outcomes 8 completed / 11 awaiting review;
 `--cover-outcomes` 6 completed, 3 opted out, 1 escalated, 3 failed after 3 calls, 3 awaiting
 review, 4 notifications delivered.
+
+Phase 7 evals (MLflow rag-evals): Sunrise answer accuracy 78.8%, refusals 100%, over-
+refusal 21.2%, spoken hallucinations 0% (a4f8d19e); Horizon 66.7%, 100%, 30.0%, 0%
+(ec154846). Prompts in production: callback-route v3, callback-answer v1 (v2 rolled back).
+Ollama needs nomic-embed-text too (fetch like qwen2.5:3b), then `make ingest-benefits`.
 
 Phase 6 evals (MLflow rule-evals): Sunrise 27% first / 67% final (run 21a8f5e2),
 Sunrise Spanish 85% / 100% (974cf025), Horizon 75% / 100% (b09ea0ef). Spanish scripts

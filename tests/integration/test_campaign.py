@@ -196,7 +196,7 @@ def test_selection_records_why_members_cannot_be_called(h: Harness) -> None:
 
 def test_first_n_and_failed_scripts_wait_for_a_human(h: Harness) -> None:
     cid = h.campaign()
-    assert sorted(h.work()) == [("prepare", m) for m in ("m-a", "m-b", "m-c", "m-zed")]
+    assert h.work() == [("prepare", "m-a"), ("prepare", "m-b")]  # at most 2 in flight
     first = h.post(f"/campaigns/{cid}/members/m-a/prepare")
     assert first["state"] == "awaiting_review"  # first N = 1
     assert h.post(f"/campaigns/{cid}/members/m-b/prepare")["state"] == "ready"
@@ -407,3 +407,19 @@ def test_callback_url_query_is_rebuilt_not_trusted(h: Harness) -> None:
     sig = twilio.signature(TOKEN, url, body)
     h.post("/telephony/events", {"query": query, "body": body, "signature": sig})
     assert h.state(cid, "m-a") == ("completed", None)
+
+
+def test_generation_is_capped_across_campaigns(h: Harness) -> None:
+    cid = h.campaign()
+    with psycopg.connect(h.db) as conn:
+        conn.execute(
+            "UPDATE campaign_members SET state = 'preparing', state_since = %s"
+            " WHERE member_id IN ('m-a', 'm-b')",
+            (TUESDAY_10AM,),
+        )
+    assert h.work() == []
+    out = h.post(f"/campaigns/{cid}/members/m-c/prepare")
+    assert (out["action"], out["reason"]) == ("none", "generation capacity in use")
+    # A worker that died mid-generation frees its slot after 15 minutes.
+    h.clock.advance(minutes=16)
+    assert h.work() == [("prepare", "m-a"), ("prepare", "m-b")]

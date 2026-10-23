@@ -49,6 +49,12 @@ log = logging.getLogger(__name__)
 STALE_PREPARING = timedelta(minutes=15)
 STALE_CALLING = timedelta(minutes=30)
 
+#: Scripts generated at once, across campaigns. The local model serves one request at a
+#: time, so more in flight only queues work behind HTTP timeouts.
+MAX_PREPARING = 2
+#: Advisory lock key serializing prepare claims (so the cap holds under concurrency).
+_PREPARE_LOCK = 0x63617265  # "care"
+
 ACTIVE_STATES = ("selected", "preparing", "ready", "calling", "retry_wait")
 CALL_DONE = ("completed", "no-answer", "busy", "failed", "canceled")
 
@@ -82,8 +88,10 @@ class CampaignService:
         profile: OutreachProfile,
         telephony: TelephonyConfig,
         clock: Clock,
+        max_preparing: int = MAX_PREPARING,
     ) -> None:
         self.conninfo = conninfo
+        self.max_preparing = max_preparing
         self.outreach = outreach
         self.generator = generator
         self.renderer = renderer
@@ -206,11 +214,12 @@ class CampaignService:
         self._apply_reviews(now)
         self._recover_stale_calls(now)
         with self._tx() as conn:
+            free = self.max_preparing - self._preparing(conn, now)
             items = conn.execute(
                 "SELECT campaign_id, member_id, 'prepare' AS action FROM campaign_members"
                 " WHERE state = 'selected' OR (state = 'preparing' AND state_since < %s)"
                 " ORDER BY campaign_id, member_id LIMIT %s",
-                (now - STALE_PREPARING, prepare_limit),
+                (now - STALE_PREPARING, max(0, min(prepare_limit, free))),
             ).fetchall()
             if self.window.is_open(now):
                 items += conn.execute(
@@ -220,6 +229,15 @@ class CampaignService:
                     (now, send_limit),
                 ).fetchall()
         return items
+
+    @staticmethod
+    def _preparing(conn: psycopg.Connection[dict[str, Any]], now: datetime) -> int:
+        row = conn.execute(
+            "SELECT count(*) AS n FROM campaign_members"
+            " WHERE state = 'preparing' AND state_since >= %s",
+            (now - STALE_PREPARING,),
+        ).fetchone()
+        return int(row["n"]) if row else 0
 
     def _apply_reviews(self, now: datetime) -> None:
         with self._tx() as conn:
@@ -262,6 +280,9 @@ class CampaignService:
         to call; the rest wait for a human."""
         now = self.clock.now()
         with self._tx() as conn:
+            conn.execute("SELECT pg_advisory_xact_lock(%s)", (_PREPARE_LOCK,))
+            if self._preparing(conn, now) >= self.max_preparing:
+                return self._no_action(campaign_id, member_id, "generation capacity in use")
             claimed = conn.execute(
                 "UPDATE campaign_members SET state = 'preparing', state_since = %s"
                 " WHERE campaign_id = %s AND member_id = %s"

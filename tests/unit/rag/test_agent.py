@@ -114,6 +114,8 @@ def test_benefit_question_is_answered_from_the_document() -> None:
         (["off_topic"], "off_topic"),
         (["hmm"], "unclear_route"),
         (["benefit", "NOT_FOUND"], "not_found"),
+        (["benefit", "Not FOUND [S4-1]"], "not_found"),
+        (["benefit", "not found."], "not_found"),
         (["benefit", "It costs $70 [S4-1]."], "ungrounded"),
     ],
 )

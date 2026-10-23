@@ -41,7 +41,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from caregap.outreach.compliance import normalize
-from caregap.rag.agent import NOT_FOUND, Answer, CallbackAgent, amounts, detect_language
+from caregap.rag.agent import Answer, CallbackAgent, amounts, detect_language, is_not_found
 from caregap.rag.agent import speakable as strip_citations
 
 EXPERIMENT = "rag-evals"
@@ -142,7 +142,7 @@ class Result:
 def evaluate(item: GoldenItem, answer: Answer, docs: Documents) -> Result:
     spoken = answer.text if answer.outcome == "answered" else None
     draft_answer = (
-        strip_citations(answer.draft) if answer.draft and NOT_FOUND not in answer.draft else None
+        strip_citations(answer.draft) if answer.draft and not is_not_found(answer.draft) else None
     )
     retrieved_amounts = set().union(*(amounts(t) for t in answer.retrieved_text.values()))
     hit = None

@@ -29,7 +29,6 @@ from caregap.prompts import PromptStore
 ROUTE_PROMPT = "callback-route"
 ANSWER_PROMPT = "callback-answer"
 ROUTES = ("benefit", "medical", "member", "off_topic")
-NOT_FOUND = "NOT_FOUND"
 LANGUAGE_NAMES = {"en": "English", "es": "Spanish"}
 
 Outcome = Literal["answered", "handoff"]
@@ -171,7 +170,7 @@ class CallbackAgent:
         ).text.strip()  # fmt: skip
         common = {"route": route, "draft": draft, "retrieved": tuple(retrieved),
                   "retrieved_text": retrieved, "citations": tuple(citations(draft))}  # fmt: skip
-        if NOT_FOUND in draft:
+        if is_not_found(draft):
             return done(outcome="handoff", reason="not_found", text=lang.qa_handoff, **common)
         others = [c.plan_name for c in self.customers.values() if c.id != customer]
         problems = grounding_problems(draft, retrieved, others)
@@ -179,6 +178,11 @@ class CallbackAgent:
             return done(outcome="handoff", reason="ungrounded", text=lang.qa_handoff,
                         problems=tuple(problems), **common)  # fmt: skip
         return done(outcome="answered", reason=None, text=speakable(draft), **common)
+
+
+def is_not_found(draft: str) -> bool:
+    """The model's "not in the excerpts" signal, however it capitalized or spaced it."""
+    return re.search(r"not[\s_-]*found", draft, re.IGNORECASE) is not None
 
 
 def parse_route(reply: str) -> str:

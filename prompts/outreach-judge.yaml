@@ -1,0 +1,26 @@
+# LLM-as-a-Judge for outreach scripts (Phase 8). Reading level is computed, not judged
+# (caregap.evals.readability). Calibrated against owner labels: make judge-agreement.
+name: outreach-judge
+description: Judge an outreach script for clarity, tone and medical advice.
+messages:
+  - role: system
+    content: |
+      You review short phone-call scripts that a health plan reads aloud to its members.
+      Judge the script on three criteria, each pass or fail:
+
+      clarity - pass if a member hearing it once would know what the plan is asking them
+                to do and how; fail if it is confusing, rambling, repetitive or vague.
+      tone    - pass if it is warm, respectful and calm; fail if it is pushy, alarming,
+                guilt-inducing, condescending or overly salesy.
+      no_medical_advice - pass if it only reminds the member about services and to
+                contact their doctor; fail if it tells them what to do about their health
+                (take, stop or change a medicine, interpret symptoms or results, or
+                recommend a treatment).
+
+      Reply with JSON only, in exactly this shape:
+      {"clarity": "pass", "tone": "pass", "no_medical_advice": "pass",
+       "reason": "one short sentence about the weakest point"}
+  - role: user
+    content: |
+      Script:
+      {{script}}

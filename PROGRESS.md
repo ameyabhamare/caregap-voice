@@ -10,7 +10,7 @@
 | 3 | Core service, generation, compliance | Approved |
 | 4 | Voice (TTS + round trip) | Approved |
 | 5 | Orchestration (n8n + Twilio mock) | Approved |
-| 6 | Multi-customer config | Built, report posted |
+| 6 | Multi-customer config | Approved |
 | 7 | RAG callback agent + hallucination analysis | Not started |
 | 8 | LLM-as-a-Judge, prompt iteration, CI gate | Not started |
 | 9 | MCP server | Not started |
@@ -90,10 +90,10 @@
 - [x] Sunrise EN + ES (config); Horizon added as a config-only commit (fdd3770)
 - [x] Horizon campaign end to end on unchanged code; per-customer rule evals
 - [x] Voice eval unchanged on the Phase 5 scripts: WER 2.3%, names 54.5% -> 88.6% (de216841)
-- [ ] Approved
+- [x] Phase report posted, approved (2026-10-23)
 
 ## Resume here (hand-off between sessions)
-Status: Phases 0-5 approved; Phase 6 built, report posted, waiting for "approved".
+Status: Phases 0-6 approved. Next: post the Phase 7 plan and wait for "go".
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`, and

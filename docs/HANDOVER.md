@@ -14,9 +14,9 @@ You are continuing the CareGap Voice project. Before doing anything else, read, 
    section with environment quirks and how to rebuild local state.
 4. `docs/adr/` - decisions so far (0001-0008).
 
-State: Phases 0-5 are approved. Phase 6 (multi-customer config) is built and its report
-posted; wait for "approved" (or fix what the owner raises) before posting the Phase 7 plan
-(RAG callback agent + hallucination analysis).
+State: Phases 0-6 are approved. Your next action is to **post the Phase 7 plan (RAG
+callback agent + hallucination analysis) and wait for "go"**. Do not write Phase 7 code
+before then.
 
 Things the owner has told us that are not obvious from the repo:
 - Reports use the five-section format in BRIEF.md; be concise and honest, including when

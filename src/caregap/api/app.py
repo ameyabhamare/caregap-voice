@@ -27,6 +27,9 @@ Campaigns (Phase 5; called by n8n, see caregap.campaign.service):
     POST /escalations/{id}/notified                   mark one delivered
     GET  /escalations                                 open escalations
     POST /notifications                               local log sink for notifications
+
+Callback Q&A (Phase 7; see caregap.rag.agent):
+    POST /callbacks/questions                         answer from the plan's benefits, or hand off
 """
 
 from __future__ import annotations
@@ -40,6 +43,7 @@ from urllib.parse import parse_qsl
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
+from langchain_core.embeddings import Embeddings
 from pydantic import BaseModel, Field
 
 from caregap.campaign.clock import Clock, build_clock
@@ -57,6 +61,9 @@ from caregap.outreach.generate import ScriptGenerator
 from caregap.outreach.profile import OutreachProfile
 from caregap.outreach.store import NotFoundError, OutreachStore, ReviewConflictError
 from caregap.prompts import PromptStore
+from caregap.rag.agent import CallbackAgent
+from caregap.rag.service import CallbackService
+from caregap.rag.store import BenefitRetriever, ChunkStore
 from caregap.voice.render import AudioRenderer, NotRenderableError, RenderedAudio, latest_audio
 
 DEFAULT_YEAR = 2025
@@ -155,6 +162,25 @@ class Notification(BaseModel):
     text: str
 
 
+class CallbackQuestion(BaseModel):
+    customer: str
+    question: str = Field(min_length=1, max_length=1000)
+    member_id: str | None = None
+
+
+class CallbackAnswer(BaseModel):
+    id: int
+    customer: str
+    language: str
+    route: str
+    outcome: str
+    reason: str | None
+    #: What the caller hears.
+    answer: str
+    citations: list[str]
+    escalation_id: int | None
+
+
 def _audio_out(a: RenderedAudio) -> AudioOut:
     return AudioOut(**{**vars(a), "url": f"/scripts/{a.script_id}/audio"})
 
@@ -172,6 +198,7 @@ def create_app(
     renderer: AudioRenderer | None = None,
     clock: Clock | None = None,
     customers: Mapping[str, CustomerConfig] | None = None,
+    embeddings: Embeddings | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     store = store or OutreachStore(settings.database_url)
@@ -237,6 +264,26 @@ def create_app(
         ),
         clock=clock or build_clock(settings.campaign_clock),
     )
+
+    callback_services: list[CallbackService] = []
+
+    def callbacks() -> CallbackService:
+        # Built on first use, like the TTS model: the service starts without Ollama.
+        if not callback_services:
+            emb = embeddings
+            if emb is None:
+                from caregap.llm.embeddings import LangChainEmbeddings
+                from caregap.llm.factory import build_embeddings
+
+                emb = LangChainEmbeddings(build_embeddings(cfg), purpose="callback")
+            chunks = ChunkStore(cfg.database_url)
+            agent = CallbackAgent(
+                client, prompt_store, configs,
+                lambda c: BenefitRetriever(store=chunks, embeddings=emb, customer=c),
+                max_output_tokens=2000 if cfg.llm_provider == "claude" else 300,
+            )  # fmt: skip
+            callback_services.append(CallbackService(cfg.database_url, agent))
+        return callback_services[0]
 
     app = FastAPI(title="CareGap Voice core service", version="0.1.0")
 
@@ -414,6 +461,16 @@ def create_app(
     @app.get("/escalations")
     def escalations(open_only: bool = True) -> list[dict[str, Any]]:
         return campaigns.escalations(open_only=open_only)
+
+    @app.post("/callbacks/questions")
+    def callback_question(q: CallbackQuestion) -> CallbackAnswer:
+        customer(q.customer)
+        qid, a, escalation_id = callbacks().ask(q.customer, q.question, q.member_id)
+        return CallbackAnswer(
+            id=qid, customer=a.customer, language=a.language, route=a.route,
+            outcome=a.outcome, reason=a.reason, answer=a.text, citations=list(a.citations),
+            escalation_id=escalation_id,
+        )  # fmt: skip
 
     @app.post("/notifications", status_code=202)
     def notification_sink(n: Notification) -> dict[str, str]:

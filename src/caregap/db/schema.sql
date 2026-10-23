@@ -207,3 +207,47 @@ CREATE INDEX IF NOT EXISTS escalations_open_idx ON escalations (created_at)
 ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS customer TEXT NOT NULL DEFAULT 'sunrise';
 ALTER TABLE outreach_scripts ADD COLUMN IF NOT EXISTS customer TEXT NOT NULL DEFAULT 'sunrise';
 ALTER TABLE outreach_scripts ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en';
+
+-- Phase 7: callback Q&A over each customer's Summary of Benefits.
+-- Chunks are replaced per customer on every ingest. 768 = nomic-embed-text dimensions.
+CREATE TABLE IF NOT EXISTS benefit_chunks (
+    id           TEXT PRIMARY KEY,           -- <customer>:<section>-<n>, e.g. sunrise:S6-1
+    customer     TEXT NOT NULL,
+    section      TEXT NOT NULL,              -- S1..Sn
+    title        TEXT NOT NULL,
+    text         TEXT NOT NULL,
+    embedding    vector(768) NOT NULL,
+    source       TEXT NOT NULL,              -- document path
+    source_sha256 TEXT NOT NULL,
+    embed_model  TEXT NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS benefit_chunks_customer_idx ON benefit_chunks (customer);
+
+-- Interaction log for callback questions. answer is what the caller was told; draft is
+-- the model's answer before the grounding check (NULL when it never got that far).
+CREATE TABLE IF NOT EXISTS callback_questions (
+    id               BIGSERIAL PRIMARY KEY,
+    customer         TEXT NOT NULL,
+    member_id        TEXT REFERENCES members (member_id),
+    question         TEXT NOT NULL,
+    language         TEXT NOT NULL,
+    route            TEXT NOT NULL,
+    outcome          TEXT NOT NULL,          -- answered | handoff
+    reason           TEXT,                   -- why it was handed off
+    answer           TEXT NOT NULL,
+    draft            TEXT,
+    citations        JSONB NOT NULL DEFAULT '[]',
+    retrieved        JSONB NOT NULL DEFAULT '[]',
+    prompt_versions  JSONB NOT NULL DEFAULT '{}',
+    model            TEXT NOT NULL,
+    latency_ms       INTEGER NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE escalations DROP CONSTRAINT IF EXISTS escalations_kind_check;
+ALTER TABLE escalations ADD CONSTRAINT escalations_kind_check CHECK (kind IN (
+    'member_request', 'delivery_failed', 'workflow_error', 'callback_question'));
+ALTER TABLE escalations ADD COLUMN IF NOT EXISTS callback_question_id BIGINT
+    REFERENCES callback_questions (id);

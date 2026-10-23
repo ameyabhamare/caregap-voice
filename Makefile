@@ -16,7 +16,7 @@ help: ## List targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(firstword $(MAKEFILE_LIST)) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 # --- setup -------------------------------------------------------------------
-.PHONY: install validate-config benefits-pdf
+.PHONY: install validate-config benefits-pdf ingest-benefits
 install: ## Install Python deps and pre-commit hooks
 	uv sync
 	$(UV) pre-commit install
@@ -131,6 +131,9 @@ serve: ## Run the core service API on http://localhost:8000
 
 benefits-pdf: ## Render benefits/*.md to the committed PDFs (dev time)
 	$(UV) python -m caregap.rag.documents build
+
+ingest-benefits: ## Embed each customer's Summary of Benefits into pgvector (idempotent)
+	$(UV) python -m caregap.rag.store
 
 validate-config: ## Validate every customer config in customers/
 	$(UV) python -m caregap.customers

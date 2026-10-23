@@ -1,6 +1,8 @@
 # Horizon ACA Marketplace. Synthetic customer for the demo (schema: src/caregap/customers.py).
 id: horizon
 plan_name: Horizon ACA Marketplace
+# Callback questions are answered only from this document.
+benefits_document: benefits/horizon.pdf
 
 # Marketplace plan: members under 65 (age on Dec 31 of the measurement year).
 members:
@@ -28,6 +30,8 @@ languages:
     goodbye: Thanks for listening. Goodbye.
     opt_out_confirmation: You are now opted out of these calls. Goodbye.
     callback_confirmation: Thanks. A member of our team will call you back soon. Goodbye.
+    qa_handoff: I can't answer that here. A member of our team will call you back.
+    qa_medical: I can't give medical advice, so please check with your doctor. A member of our team can also call you back.
     measure_descriptions:
       eye_exam: a yearly eye exam
       statin: staying on schedule with your cholesterol medication refills

@@ -2,6 +2,8 @@
 # between customers comes from files like this one (schema: src/caregap/customers.py).
 id: sunrise
 plan_name: Sunrise Medicare Advantage
+# Callback questions are answered only from this document.
+benefits_document: benefits/sunrise.pdf
 
 # Medicare Advantage: members aged 65 and over (age on Dec 31 of the measurement year).
 members:
@@ -29,6 +31,8 @@ languages:
     goodbye: Thank you for your time. Goodbye.
     opt_out_confirmation: You will not receive more of these calls. Goodbye.
     callback_confirmation: Thank you. Someone from our team will call you back. Goodbye.
+    qa_handoff: I can't answer that on this call. Someone from our team will call you back.
+    qa_medical: I can't give medical advice. Please talk with your doctor. Someone from our team can also call you back.
     measure_descriptions:
       awv: a yearly wellness visit with your doctor
       eye_exam: a yearly eye exam
@@ -47,6 +51,8 @@ languages:
     goodbye: Gracias por su tiempo. Adiós.
     opt_out_confirmation: No recibirá más llamadas como esta. Adiós.
     callback_confirmation: Gracias. Alguien de nuestro equipo le devolverá la llamada. Adiós.
+    qa_handoff: No puedo responder eso en esta llamada. Alguien de nuestro equipo le devolverá la llamada.
+    qa_medical: No puedo dar consejos médicos. Por favor hable con su médico. Alguien de nuestro equipo también puede llamarle.
     measure_descriptions:
       awv: una visita anual de bienestar con su médico
       eye_exam: un examen anual de la vista

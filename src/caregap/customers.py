@@ -104,6 +104,10 @@ class LanguageConfig(_Model):
     goodbye: str
     opt_out_confirmation: str
     callback_confirmation: str
+    #: Callback Q&A: said when a question is handed to a person (not answerable here).
+    qa_handoff: str
+    #: Callback Q&A: said for medical questions, before the hand-off.
+    qa_medical: str
     #: How each measure is described: services, never diagnoses or drugs.
     measure_descriptions: dict[str, str]
 
@@ -126,6 +130,8 @@ class EscalationPolicy(_Model):
 class CustomerConfig(_Model):
     id: str = Field(pattern=r"^[a-z][a-z0-9-]*$")
     plan_name: str
+    #: Summary of Benefits PDF that callback questions are answered from.
+    benefits_document: Path
     members: MemberRule
     #: In priority order: a script covers the first ``max_gaps_per_script`` open ones.
     measures: tuple[str, ...] = Field(min_length=1)
@@ -256,6 +262,11 @@ def load_all(
                         )
     from caregap.voice.pronunciation import DEFAULT_PATH, PronunciationDict
 
+    errors += [
+        f"{c.id}: benefits_document {c.benefits_document} does not exist"
+        for c in configs
+        if not c.benefits_document.is_file()
+    ]
     dictionary = PronunciationDict.load(pronunciations or DEFAULT_PATH)
     plans = {t.lower() for t in dictionary.terms("plan")}
     errors += [

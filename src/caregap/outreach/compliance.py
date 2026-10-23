@@ -19,6 +19,7 @@ paraphrases do not.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -59,24 +60,43 @@ class ComplianceResult:
         return sorted({v.rule for v in self.violations})
 
 
+# Terms are checked in every language: an English drug name in a Spanish script is still
+# a drug name. Spanish lists were drafted at dev time (not reviewed by a native speaker).
 DIAGNOSIS_TERMS = (
     "diabetes", "diabetic", "prediabetes", "retinopathy", "neuropathy", "hyperlipidemia",
     "hypertension", "high blood pressure", "kidney disease", "heart disease", "heart failure",
     "cancer", "depression", "dementia", "copd", "asthma", "obesity", "stroke",
+    # Spanish
+    "diabético", "diabética", "retinopatía", "neuropatía", "hiperlipidemia", "hipertensión",
+    "presión alta", "presión arterial alta", "colesterol alto", "enfermedad renal",
+    "enfermedad del riñón", "enfermedad cardíaca", "enfermedad del corazón",
+    "insuficiencia cardíaca", "cáncer", "depresión", "demencia", "epoc", "asma", "obesidad",
+    "derrame cerebral", "accidente cerebrovascular",
 )  # fmt: skip
 
 DRUG_NAMES = (
     *STATIN_INGREDIENTS, "statin", "statins", "metformin", "insulin", "lisinopril",
     "amlodipine", "hydrochlorothiazide", "simvastatin", "atorvastatin", "aspirin",
     "warfarin", "levothyroxine", "losartan", "metoprolol", "gabapentin",
+    # Spanish
+    "estatina", "estatinas", "atorvastatina", "simvastatina", "rosuvastatina",
+    "pravastatina", "lovastatina", "fluvastatina", "pitavastatina", "metformina",
+    "insulina", "amlodipino", "amlodipina", "hidroclorotiazida", "aspirina", "warfarina",
+    "levotiroxina", "losartán", "gabapentina",
 )  # fmt: skip
 
 _MONTHS = (
     "january|february|march|april|may|june|july|august|september|october|november|december"
     "|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec"
 )
+_MESES = (
+    "enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre"
+    "|noviembre|diciembre"
+)
 _DATE_PATTERNS = (
     re.compile(r"\b\d{4}-\d{1,2}-\d{1,2}\b"),
+    re.compile(rf"\b\d{{1,2}}\s+de\s+(?:{_MESES})\b", re.IGNORECASE),
+    re.compile(rf"\b(?:{_MESES})\s+\d{{1,2}}\b", re.IGNORECASE),
     re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b"),
     re.compile(rf"\b(?:{_MONTHS})\.?\s+\d{{1,2}}(?:st|nd|rd|th)?\b", re.IGNORECASE),
     re.compile(rf"\b\d{{1,2}}(?:st|nd|rd|th)?\s+(?:of\s+)?(?:{_MONTHS})\b", re.IGNORECASE),
@@ -87,8 +107,10 @@ _PLACEHOLDER = re.compile(r"\[[A-Za-z _]+\]|\{\{.*?\}\}|<[A-Za-z _]+>|\{[a-z_]+\
 
 
 def normalize(text: str) -> str:
-    """Lowercase, letters/digits only, single spaces."""
-    return " ".join(re.sub(r"[^a-z0-9]+", " ", text.lower()).split())
+    """Lowercase, accents removed, letters/digits only, single spaces."""
+    folded = unicodedata.normalize("NFKD", text.lower())
+    ascii_only = "".join(c for c in folded if not unicodedata.combining(c))
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", ascii_only).split())
 
 
 def _contains_phrase(text: str, phrase: str) -> bool:
@@ -124,10 +146,10 @@ def check(script: str, profile: OutreachProfile, member: MemberContext) -> Compl
         v.append(Violation("phi_pattern", f"ID-like number {m.group(0)!r}"))
 
     for term in DIAGNOSIS_TERMS:
-        if f" {term} " in text_norm:
+        if f" {normalize(term)} " in text_norm:
             v.append(Violation("diagnosis_term", term))
     for name in DRUG_NAMES:
-        if f" {name} " in text_norm:
+        if f" {normalize(name)} " in text_norm:
             v.append(Violation("drug_name", name))
 
     if m := _PLACEHOLDER.search(script):
@@ -164,7 +186,7 @@ def _member_phi(
         if any(f" {normalize(f)} " in text_norm for f in forms) or f" {b.year} " in text_norm:
             out.append(Violation("member_phi", "birth date"))
     if "age" not in allowed and re.search(
-        rf"\b{member.age}\s*(?:-\s*)?(?:years?|yrs?)\b", script, re.IGNORECASE
+        rf"\b{member.age}\s*(?:-\s*)?(?:years?|yrs?|años)\b", script, re.IGNORECASE
     ):
         out.append(Violation("member_phi", "age"))
     return out

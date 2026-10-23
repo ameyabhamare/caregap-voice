@@ -1,0 +1,15 @@
+# Spanish counterpart of outreach-script-revise. Not yet reviewed by a native speaker.
+name: outreach-script-revise-es
+description: Ask the model to fix a Spanish script that failed compliance checks.
+messages:
+  - role: user
+    content: |
+      Ese guion no pasó estas revisiones de cumplimiento:
+      {{violations}}
+
+      Reescriba todo el guion para que pase todas las revisiones, en español y con las
+      mismas reglas de antes.
+      Recuerde terminar con estas dos oraciones, copiadas exactamente:
+      "{{disclaimer}}"
+      "{{opt_out}}"
+      Responda solo con el guion.

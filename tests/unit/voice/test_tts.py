@@ -54,3 +54,20 @@ def test_kokoro_synthesizes_with_and_without_overrides() -> None:
     audio = tuned.synthesize(text)
     assert audio.sample_rate == 24000
     assert 1.0 < audio.duration_s < 5.0
+
+
+@pytest.mark.models
+def test_kokoro_speaks_spanish_without_english_overrides() -> None:
+    if not (MODEL_DIR / "kokoro-v1.0.onnx").exists():
+        pytest.skip("Kokoro model files not downloaded")
+    from caregap.voice.kokoro import KokoroTTS
+    from caregap.voice.pronunciation import PronunciationDict
+
+    overrides = PronunciationDict.load()
+    tuned = KokoroTTS(MODEL_DIR, overrides=overrides)
+    text = "Su plan Sunrise Medicare Advantage le recuerda su chequeo anual."
+    # English override IPA is not spliced into Spanish phonemes.
+    assert tuned.phonemes(text, "es") == KokoroTTS(MODEL_DIR).phonemes(text, "es")
+    assert tuned.phonemes(text, "es") != tuned.phonemes(text, "en-us")
+    audio = tuned.synthesize(text, voice="ef_dora", lang="es")
+    assert 2.0 < audio.duration_s < 10.0

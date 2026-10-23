@@ -80,3 +80,36 @@ def test_measure_selection_caps_and_orders() -> None:
 def test_clean_strips_wrapping_quotes() -> None:
     assert clean('  "Hello there."  ') == "Hello there."
     assert clean('"Hello" she said') == '"Hello" she said'
+
+
+def test_generic_profile_never_sends_the_name() -> None:
+    profile = P.model_copy(
+        update={"allowed_member_fields": (), "script_prompt": "outreach-script-generic"}
+    )
+    generic = f"Hello, a yearly wellness visit is due. {P.disclaimer} {P.opt_out}"
+    provider = FakeProvider([generic])
+    client = LLMClient(provider, CostLedger(InMemoryLedgerStore(), Decimal("5")))
+    out = ScriptGenerator(client, FilePromptStore(), profile).generate(MEMBER, ["awv"])
+    assert out.status == COMPLIANT
+    assert out.prompt_versions == {"outreach-script-generic": "file"}
+    assert "Ava" not in " ".join(m.content for m in provider.calls[0])
+
+    # A script that uses the name anyway fails: the name is PHI for this customer.
+    provider = FakeProvider([GOOD, GOOD])
+    client = LLMClient(provider, CostLedger(InMemoryLedgerStore(), Decimal("5")))
+    out = ScriptGenerator(client, FilePromptStore(), profile).generate(MEMBER, ["awv"])
+    assert out.status == NEEDS_REVIEW
+    assert "member_phi" in out.final.rules
+
+
+def test_spanish_profile_uses_spanish_prompts_and_records_the_language() -> None:
+    es = P.model_copy(
+        update={"language": "es", "script_prompt": "outreach-script-es",
+                "revise_prompt": "outreach-script-revise-es"}
+    )  # fmt: skip
+    provider = FakeProvider(["Hola Ava, sobre su diabetes.", GOOD])
+    client = LLMClient(provider, CostLedger(InMemoryLedgerStore(), Decimal("5")))
+    out = ScriptGenerator(client, FilePromptStore(), es).generate(MEMBER, ["awv"])
+    assert out.language == "es"
+    assert set(out.prompt_versions) == {"outreach-script-es", "outreach-script-revise-es"}
+    assert "Nombre de pila del miembro: Ava" in provider.calls[0][1].content

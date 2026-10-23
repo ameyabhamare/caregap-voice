@@ -107,3 +107,38 @@ def test_placeholders(placeholder: str) -> None:
 def test_harmless_numbers_and_words_pass() -> None:
     ok = "Press 9 anytime. It takes about 30 minutes, and you may bring a friend. "
     assert rules(script(ok + BODY)) == []
+
+
+ES = P.model_copy(
+    update={
+        "language": "es",
+        "disclaimer": "Este mensaje es de Sunrise Medicare Advantage y es solo informativo. "
+        "No es un consejo médico.",
+        "opt_out": "Para dejar de recibir estas llamadas, oprima 9 o diga alto.",
+    }
+)
+ES_OK = (
+    "Hola Ava, le recordamos programar su visita anual de bienestar con su médico. "
+    f"{ES.disclaimer} {ES.opt_out}"
+)
+
+
+def test_spanish_script_passes_and_accents_do_not_matter() -> None:
+    assert check(ES_OK, ES, MEMBER).passed
+    unaccented = ES_OK.replace("médico", "medico").replace("Para dejar", "para dejar")
+    assert check(unaccented, ES, MEMBER).passed
+
+
+@pytest.mark.parametrize(
+    ("text", "rule"),
+    [
+        ("Sobre su presión arterial alta.", "diagnosis_term"),
+        ("Su diabetes necesita atención.", "diagnosis_term"),
+        ("Recoja su atorvastatina.", "drug_name"),
+        ("Recoja su insulina.", "drug_name"),
+        ("Su cita es el 15 de marzo.", "phi_pattern"),
+        ("Usted tiene 70 años.", "member_phi"),
+    ],
+)
+def test_spanish_violations(text: str, rule: str) -> None:
+    assert rule in check(f"{text} {ES.disclaimer} {ES.opt_out}", ES, MEMBER).rules

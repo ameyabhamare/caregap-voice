@@ -30,3 +30,14 @@ def test_file_store_checks_declared_name(tmp_path: Path) -> None:
     (tmp_path / "a.yaml").write_text("name: b\nmessages: [{role: user, content: hi}]\n")
     with pytest.raises(ValueError, match="declares name"):
         FilePromptStore(tmp_path).get("a")
+
+
+def test_language_and_generic_variants_use_the_same_variables() -> None:
+    store = FilePromptStore()
+    base = store.get("outreach-script").variables
+    assert store.get("outreach-script-es").variables == base
+    assert store.get("outreach-script-generic").variables == base - {"given_name"}
+    assert (
+        store.get("outreach-script-revise-es").variables
+        == store.get("outreach-script-revise").variables
+    )

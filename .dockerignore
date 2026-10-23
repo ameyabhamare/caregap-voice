@@ -1,7 +1,8 @@
-.git
-.venv
-data
-mlruns
-mlartifacts
+# Allowlist: the core image needs the package, its lock file and runtime config only.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+!voice/
 **/__pycache__
-.env

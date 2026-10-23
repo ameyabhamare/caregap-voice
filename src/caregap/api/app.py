@@ -61,7 +61,7 @@ from caregap.outreach.generate import ScriptGenerator
 from caregap.outreach.profile import OutreachProfile
 from caregap.outreach.store import NotFoundError, OutreachStore, ReviewConflictError
 from caregap.prompts import PromptStore
-from caregap.rag.agent import CallbackAgent
+from caregap.rag.agent import CallbackAgent, token_limits
 from caregap.rag.service import CallbackService
 from caregap.rag.store import BenefitRetriever, ChunkStore
 from caregap.voice.render import AudioRenderer, NotRenderableError, RenderedAudio, latest_audio
@@ -280,7 +280,7 @@ def create_app(
             agent = CallbackAgent(
                 client, prompt_store, configs,
                 lambda c: BenefitRetriever(store=chunks, embeddings=emb, customer=c),
-                max_output_tokens=2000 if cfg.llm_provider == "claude" else 300,
+                **token_limits(cfg.llm_provider),
             )  # fmt: skip
             callback_services.append(CallbackService(cfg.database_url, agent))
         return callback_services[0]

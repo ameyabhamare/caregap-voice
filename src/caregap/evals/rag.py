@@ -41,7 +41,14 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from caregap.outreach.compliance import normalize
-from caregap.rag.agent import Answer, CallbackAgent, amounts, detect_language, is_not_found
+from caregap.rag.agent import (
+    Answer,
+    CallbackAgent,
+    amounts,
+    detect_language,
+    is_not_found,
+    token_limits,
+)
 from caregap.rag.agent import speakable as strip_citations
 
 EXPERIMENT = "rag-evals"
@@ -321,7 +328,7 @@ def main(argv: list[str] | None = None) -> None:
     agent = CallbackAgent(
         client, MlflowPromptStore(settings.mlflow_tracking_uri), customers,
         lambda c: BenefitRetriever(store=chunks, embeddings=emb, customer=c, k=args.k),
-        max_output_tokens=2000 if settings.llm_provider == "claude" else 300,
+        **token_limits(settings.llm_provider),
     )  # fmt: skip
     model = f"{client.provider.name}:{client.model}"
     print(f"[eval-rag] {args.customer}: {len(golden.items)} questions, {model}, "

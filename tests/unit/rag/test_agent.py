@@ -158,3 +158,10 @@ def test_chunking_is_one_benefit_per_chunk_with_its_context() -> None:
         ("sunrise:S2-2", "S2-2", "Drugs: Cost per 30-day supply: Tier 2: $10 copay."),
         ("sunrise:S2-3", "S2-3", "Drugs: Statins are on Tier 1."),
     ]
+
+
+def test_claude_gets_room_to_think_before_a_one_word_route() -> None:
+    from caregap.rag.agent import token_limits
+
+    assert token_limits("ollama")["route_max_output_tokens"] == 10
+    assert token_limits("claude")["route_max_output_tokens"] >= 1000

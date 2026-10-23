@@ -114,6 +114,14 @@ class Answer:
     latency_s: float = 0.0
 
 
+def token_limits(provider: str) -> dict[str, int]:
+    """Output-token ceilings for the two model calls. Claude spends output tokens on
+    thinking, so it needs far more headroom than the one-word route reply suggests."""
+    if provider == "claude":
+        return {"max_output_tokens": 2000, "route_max_output_tokens": 1000}
+    return {"max_output_tokens": 300, "route_max_output_tokens": 10}
+
+
 class CallbackAgent:
     def __init__(
         self,
@@ -123,12 +131,14 @@ class CallbackAgent:
         retriever_for: Callable[[str], BaseRetriever],
         *,
         max_output_tokens: int = 300,
+        route_max_output_tokens: int = 10,
     ) -> None:
         self.llm = llm
         self.prompts = prompts
         self.customers = dict(customers)
         self.retriever_for = retriever_for
         self.max_output_tokens = max_output_tokens
+        self.route_max_output_tokens = route_max_output_tokens
 
     def ask(self, customer: str, question: str) -> Answer:
         started = time.monotonic()
@@ -147,7 +157,8 @@ class CallbackAgent:
         route_prompt = self.prompts.get(ROUTE_PROMPT)
         versions[ROUTE_PROMPT] = route_prompt.version
         reply = self.llm.complete(
-            route_prompt.render(question=question), max_output_tokens=10,
+            route_prompt.render(question=question),
+            max_output_tokens=self.route_max_output_tokens,
             purpose=f"callback-route:{customer}",
         ).text  # fmt: skip
         route = parse_route(reply)

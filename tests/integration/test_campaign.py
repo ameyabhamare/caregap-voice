@@ -70,7 +70,7 @@ def db(pg_url: str) -> str:
     with psycopg.connect(pg_url) as conn:
         conn.execute(
             "TRUNCATE escalations, telephony_events, call_attempts, campaign_members, campaigns,"
-            " consent, script_audio, outreach_scripts, care_gaps, members"
+            " consent, script_audio, outreach_scripts, care_gaps, members CASCADE"
         )
         for mid, name, phone, deceased, consent in MEMBERS:
             conn.execute(

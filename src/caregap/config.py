@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     claude_model: str = "claude-opus-5-5"
     claude_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
 
+    #: off | record (save every model response) | replay (serve only saved ones; CI).
+    llm_fixtures: Literal["off", "record", "replay"] = "off"
+    llm_fixtures_dir: Path = Path("fixtures/ci")
+
     mlflow_tracking_uri: str = "http://localhost:5000"
     fhir_base_url: str = "http://localhost:8080/fhir"
 

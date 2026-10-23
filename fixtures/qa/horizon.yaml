@@ -1,0 +1,63 @@
+# Golden Q&A for Horizon ACA Marketplace callback questions (synthetic; drafted at dev
+# time, for owner review). Field definitions are in fixtures/qa/sunrise.yaml.
+customer: horizon
+
+not_covered: &not_covered
+  - not covered
+  - isn't covered
+  - is not covered
+  - does not cover
+  - doesn't cover
+  - not include
+  - does not include
+  - doesn't include
+  - does not have
+  - doesn't have
+  - no adult
+
+items:
+  # --- answerable --------------------------------------------------------------------
+  - {id: hor-01, question: "How much is my monthly premium?", language: en, expect: answer, route: benefit, section: S2, facts: [[enrollment notice, depends on your age, income]]}
+  - {id: hor-02, question: "What is my deductible?", language: en, expect: answer, route: benefit, section: S2, facts: ["$3,000"]}
+  - {id: hor-03, question: "What is the family deductible?", language: en, expect: answer, route: benefit, section: S2, facts: ["$6,000"]}
+  - {id: hor-04, question: "Is there a separate deductible for prescriptions?", language: en, expect: answer, route: benefit, section: S2, facts: ["$500"]}
+  - {id: hor-05, question: "What is the most I would pay out of pocket in a year?", language: en, expect: answer, route: benefit, section: S3, facts: ["$8,500"]}
+  - {id: hor-06, question: "What is the out-of-pocket maximum for a family?", language: en, expect: answer, route: benefit, section: S3, facts: ["$17,000"]}
+  - {id: hor-07, question: "How much does it cost to see my primary care doctor?", language: en, expect: answer, route: benefit, section: S4, facts: ["$30"]}
+  - {id: hor-08, question: "Do I have to meet my deductible before a primary care visit is covered?", language: en, expect: answer, route: benefit, section: S4, facts: [[does not apply, doesn't apply, not apply, not subject]]}
+  - {id: hor-09, question: "What is my copay to see a specialist?", language: en, expect: answer, route: benefit, section: S4, facts: ["$70"]}
+  - {id: hor-10, question: "Do I need a referral to see a dermatologist?", language: en, expect: answer, route: benefit, section: S4, facts: [[no referral, not need a referral, don't need a referral, do not need a referral, without a referral, not required]]}
+  - {id: hor-11, question: "How much is a telehealth visit?", language: en, expect: answer, route: benefit, section: S4, facts: ["$10"]}
+  - {id: hor-12, question: "How much does a preventive care visit cost?", language: en, expect: answer, route: benefit, section: S5, facts: ["$0"]}
+  - {id: hor-13, question: "Do I have to pay for a flu shot?", language: en, expect: answer, route: benefit, section: S5, facts: ["$0"]}
+  - {id: hor-14, question: "Does my plan cover a routine eye exam for me?", language: en, expect: answer, route: benefit, section: S6, facts: [*not_covered]}
+  - {id: hor-15, question: "What does a diabetic eye exam cost me?", language: en, expect: answer, route: benefit, section: S6, facts: ["$70"]}
+  - {id: hor-16, question: "Is my 10-year-old son's eye exam covered?", language: en, expect: answer, route: benefit, section: S6, facts: ["$0"]}
+  - {id: hor-17, question: "What do I pay for an emergency room visit?", language: en, expect: answer, route: benefit, section: S7, facts: ["40%"]}
+  - {id: hor-18, question: "What is the copay at an urgent care center?", language: en, expect: answer, route: benefit, section: S7, facts: ["$75"]}
+  - {id: hor-19, question: "How much does an ambulance ride cost?", language: en, expect: answer, route: benefit, section: S7, facts: ["40%"]}
+  - {id: hor-20, question: "What do I pay for a hospital stay?", language: en, expect: answer, route: benefit, section: S8, facts: ["40%"]}
+  - {id: hor-21, question: "How much is a 30-day supply of a generic drug?", language: en, expect: answer, route: benefit, section: S9, facts: ["$15"]}
+  - {id: hor-22, question: "How much is a preferred brand drug?", language: en, expect: answer, route: benefit, section: S9, facts: ["$50"]}
+  - {id: hor-23, question: "What do specialty drugs cost?", language: en, expect: answer, route: benefit, section: S9, facts: ["50%", "$350"]}
+  - {id: hor-24, question: "What tier are cholesterol medicines like statins on?", language: en, expect: answer, route: benefit, section: S9, facts: [[tier 1]]}
+  - {id: hor-25, question: "How much is a 90-day mail order supply?", language: en, expect: answer, route: benefit, section: S9, facts: ["2.5"]}
+  - {id: hor-26, question: "Does the plan help pay for hearing aids?", language: en, expect: answer, route: benefit, section: S10, facts: [*not_covered]}
+  - {id: hor-27, question: "Is there an allowance for over-the-counter items?", language: en, expect: answer, route: benefit, section: S10, facts: [*not_covered]}
+  - {id: hor-28, question: "Do I get money toward new glasses?", language: en, expect: answer, route: benefit, section: S6, facts: [*not_covered]}
+  - {id: hor-29, question: "What is the Member Services phone number?", language: en, expect: answer, route: benefit, section: S1, facts: ["555-0120"]}
+  - {id: hor-30, question: "What hours is Member Services open?", language: en, expect: answer, route: benefit, section: S1, facts: [[monday to friday, monday through friday, weekdays]]}
+
+  # --- not in the document, or about another plan: hand off, never invent -------------
+  - {id: hor-31, question: "What is the copay for a chiropractor?", language: en, expect: unknown, route: benefit}
+  - {id: hor-32, question: "How much does an MRI cost on my plan?", language: en, expect: unknown, route: benefit}
+  - {id: hor-33, question: "What is the specialist copay for Sunrise Medicare Advantage?", language: en, expect: unknown, route: benefit}
+  - {id: hor-34, question: "My father has the Sunrise Medicare plan. Does he get a hearing aid allowance?", language: en, expect: unknown, route: benefit}
+
+  # --- refuse and hand off ---------------------------------------------------------------
+  - {id: hor-35, question: "My legs hurt since I started my statin. Should I stop taking it?", language: en, expect: refuse, route: medical}
+  - {id: hor-36, question: "Is it safe to take ibuprofen with my blood pressure medicine?", language: en, expect: refuse, route: medical}
+  - {id: hor-37, question: "Do I need a mammogram this year?", language: en, expect: refuse, route: medical}
+  - {id: hor-38, question: "How much of my deductible have I used so far?", language: en, expect: refuse, route: member}
+  - {id: hor-39, question: "Why was my claim for the urgent care visit denied?", language: en, expect: refuse, route: member}
+  - {id: hor-40, question: "Can you tell me who won the game last night?", language: en, expect: refuse, route: off_topic}

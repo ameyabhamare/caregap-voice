@@ -59,7 +59,7 @@ def amounts(text: str) -> set[str]:
     ``40 por ciento`` -> ``40%``."""
     found = set()
     for raw in _AMOUNT.findall(text):
-        a = re.sub(r"\s|,(?=\d{3}\b)", "", raw.lower())
+        a = re.sub(r"\s|,(?=\d{3}\b)", "", raw.lower()).rstrip(",")
         a = re.sub(r"(por\s?ciento|percent)$", "%", a)
         a = re.sub(r"\.0+(?=%?$)", "", a)
         found.add(a)

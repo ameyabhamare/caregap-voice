@@ -119,9 +119,12 @@ pipeline-databricks: ## Deploy bundle, upload NDJSON, run the job on serverless,
 # --- core service, generation, compliance (Phase 3) ----------------------------
 N ?= 100
 
-.PHONY: prompts-register serve eval-rules eval-voice
+.PHONY: prompts-register serve eval-rules eval-voice eval-rag
 eval-voice: ## Round-trip TTS->STT WER eval incl. name WER before/after overrides (MLflow)
 	$(UV) python -m caregap.evals.voice
+
+eval-rag: ## Callback Q&A hallucination report for CUSTOMER (golden set in fixtures/qa), MLflow
+	$(UV) python -m caregap.evals.rag --customer $(CUSTOMER)
 
 eval-rules: ## Compliance eval on N members of CUSTOMER (default sunrise; LANGUAGE=es to filter)
 	$(UV) python -m caregap.evals.rules -n $(N) --customer $(CUSTOMER) $(if $(LANGUAGE),--language $(LANGUAGE))

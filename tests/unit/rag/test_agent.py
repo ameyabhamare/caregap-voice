@@ -56,6 +56,7 @@ def test_amounts_are_normalized() -> None:
         "$4900", "$35", "40%", "33%",
     }  # fmt: skip
     assert amounts("Tier 1, 555-0110, 24 trips") == set()
+    assert amounts("It is $35, or $1,000, then 40%.") == {"$35", "$1000", "40%"}
 
 
 @pytest.mark.parametrize(

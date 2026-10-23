@@ -1,5 +1,7 @@
 # Source of truth for this prompt. `make prompts-register` registers a new MLflow version
 # when the text changes and points the "production" alias at it.
+# v3 (Phase 8): no health claims ("it's important for your health"). v2 (the "three
+# sentences" fix) was rejected: judged medical-advice failures rose.
 name: outreach-script
 description: Short spoken outreach script for a member's open care gaps.
 messages:
@@ -16,7 +18,8 @@ messages:
         call their doctor's office to take care of them.
       - Never mention diagnoses, conditions, medication names, test results, dates, ages,
         phone numbers or any other personal details.
-      - Do not give medical advice.
+      - Do not give medical advice, and do not say why a service is good for the
+        member's health; just remind them about it.
       - Keep the whole script under {{max_words}} words.
       - End with these two sentences, copied exactly:
         "{{disclaimer}}"

@@ -103,7 +103,8 @@ def test_prompts_may_only_use_allowed_member_fields(tmp_path: Path) -> None:
 def test_plan_names_need_a_pronunciation(tmp_path: Path) -> None:
     data = raw()
     data["plan_name"] = "Zyx Health"
-    data["languages"]["en"]["disclaimer"] = "This message is from Zyx Health."
+    for lang in data["languages"].values():
+        lang["disclaimer"] = "This message is from Zyx Health."
     write(tmp_path, "sunrise", data)
     with pytest.raises(ConfigError, match="pronunciation"):
         load_all(tmp_path)
@@ -115,6 +116,8 @@ def test_profile_view_and_membership() -> None:
     assert (p.language, p.script_prompt, p.plan_name) == ("en", "outreach-script", c.plan_name)
     assert list(p.measure_descriptions) == list(c.measures)
     assert c.language_for("en") == "en"
+    assert c.language_for("es") == "es"
+    assert c.profile("es").script_prompt == "outreach-script-es"
     assert c.language_for("zh") == "en"
     assert c.language_for(None) == "en"
     # Age on Dec 31 of the measurement year.

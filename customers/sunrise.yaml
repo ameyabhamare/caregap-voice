@@ -33,6 +33,24 @@ languages:
       awv: a yearly wellness visit with your doctor
       eye_exam: a yearly eye exam
       statin: keeping your cholesterol medication refills on schedule
+  # Members whose preferred language is Spanish. Wording drafted at dev time; not yet
+  # reviewed by a native speaker.
+  es:
+    voice: ef_dora
+    say_language: es-US
+    script_prompt: outreach-script-es
+    revise_prompt: outreach-script-revise-es
+    disclaimer: >-
+      Este mensaje es de Sunrise Medicare Advantage y es solo informativo.
+      No es un consejo médico.
+    opt_out: Para dejar de recibir estas llamadas, oprima 9 o diga alto.
+    goodbye: Gracias por su tiempo. Adiós.
+    opt_out_confirmation: No recibirá más llamadas como esta. Adiós.
+    callback_confirmation: Gracias. Alguien de nuestro equipo le devolverá la llamada. Adiós.
+    measure_descriptions:
+      awv: una visita anual de bienestar con su médico
+      eye_exam: un examen anual de la vista
+      statin: mantener al día los resurtidos de su medicamento para el colesterol
 
 campaign:
   timezone: America/New_York

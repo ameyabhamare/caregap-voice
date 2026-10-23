@@ -28,9 +28,15 @@ dev = [
     "mypy>=1.13",
     "pre-commit>=4.0",
     "types-pyyaml>=6.0",
+    "fpdf2>=2.8.9",
 ]
 pipeline = [
     "pyspark==4.0.4",
+]
+rag = [
+    "langchain-core>=1.7.0",
+    "langchain-text-splitters>=1.1.3",
+    "pypdf>=6.21.2",
 ]
 voice = [
     "av>=14,<19",
@@ -41,8 +47,9 @@ voice = [
 [tool.uv]
 # The pipeline group (PySpark) is installed for development and tests; the core service
 # image can skip it with `uv sync --no-group pipeline`. The voice group (TTS/STT runtimes)
-# is installed by default too; CI tests use fakes and never load the models.
-default-groups = ["dev", "pipeline", "voice"]
+# is installed by default too; CI tests use fakes and never load the models. The rag group
+# (LangChain core, PDF reading) is needed by the core service for callback Q&A.
+default-groups = ["dev", "pipeline", "rag", "voice"]
 
 [build-system]
 requires = ["hatchling"]

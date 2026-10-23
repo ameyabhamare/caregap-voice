@@ -2,6 +2,8 @@
 # are answered; everything else is handed to a person.
 # v2: cost and coverage questions are benefit even when they name a medical service or
 # a drug; few-shot examples (none of them from the golden Q&A sets).
+# v3: "my"/"I" questions about plan rules are benefit; member only when the answer needs
+# the caller's own records. Member Services contact details and referrals are benefit.
 name: callback-route
 description: Route a callback question to benefit, medical, member or off_topic.
 messages:
@@ -11,14 +13,17 @@ messages:
       one word from this list and nothing else:
 
       benefit   - what the plan covers or what something costs: premiums, deductibles,
-                  copays, coinsurance, coverage, referrals, drug tiers, allowances, extra
-                  benefits, phone numbers or hours. A question about cost or coverage is
-                  benefit even when it names a medical service, a drug or a condition.
+                  copays, coinsurance, coverage, out-of-pocket limits, referral rules,
+                  drug tiers, allowances, extra benefits, and the plan's Member Services
+                  phone number or hours. A question about cost or coverage is benefit even
+                  when it names a medical service, a drug or a condition, and even when it
+                  says "my" or "I" ("What is my copay?" asks about the plan's rules).
       medical   - asks for health or medical advice: what a symptom or test result
                   means, a dose, or whether to take, stop or get a medicine, test or
                   treatment
-      member    - needs the caller's own records: claims, member ID, amounts already
-                  paid or used so far, prescriptions or appointments
+      member    - can only be answered from the caller's own records: their claims,
+                  member ID, amounts they have already paid or used so far, their
+                  prescriptions or appointments
       off_topic - anything else
 
       Examples:

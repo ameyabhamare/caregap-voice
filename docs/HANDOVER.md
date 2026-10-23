@@ -12,11 +12,14 @@ You are continuing the CareGap Voice project. Before doing anything else, read, 
 2. `CLAUDE.md` - conventions, layout, commands.
 3. `PROGRESS.md` - phase status, decisions log, open questions, and the "Resume here"
    section with environment quirks and how to rebuild local state.
-4. `docs/adr/` - decisions so far (0001-0009).
+4. `docs/adr/` - decisions so far (0001-0010).
 
-State: Phases 0-7 are approved (golden Q&A approved with no changes requested). Your next
-action is to **post the Phase 8 plan (LLM-as-a-Judge, prompt iteration, CI gate) and wait
-for "go"**. Do not write Phase 8 code before then.
+State: Phases 0-7 are approved. Phase 8 is built and its report posted. Waiting on the
+owner: labels in `fixtures/judge/calibration.csv` (`make label-judge`), then run
+`make judge-agreement`, report kappa per criterion, and if a criterion reaches 0.4 add it
+to `GATED_JUDGE_CRITERIA` in `caregap/evals/ci.py` and re-record. Also ask whether v2
+should be re-decided if the medical-advice criterion turns out unreliable. Then wait for
+"approved" before the Phase 9 plan (MCP server).
 
 Things the owner has told us that are not obvious from the repo:
 - Reports use the five-section format in BRIEF.md; be concise and honest, including when

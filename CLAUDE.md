@@ -42,13 +42,18 @@ src/caregap/          Python package
                       callback agent with grounding check, callback service
   prompts.py          prompt files <-> MLflow prompt registry
   voice/              TTS (Kokoro), paid stubs, pronunciation overrides, STT, WER, rendering
-  evals/              eval suites logged to MLflow (`make eval-rules`, `make eval-voice`)
+  evals/              eval suites logged to MLflow: rules, voice, rag, judge + calibration,
+                      the script suite with promotion (`make eval`), the CI gate (`ci.py`)
 voice/pronunciations.yaml  IPA + respelling overrides for drug and plan names
 fixtures/voice/       name sentences for the pronunciation eval
 prompts/              prompt source of truth (YAML); register with `make prompts-register`
 customers/            one YAML per health plan (sunrise, horizon): all behavior differences
 benefits/             synthetic Summary of Benefits per customer (markdown source + committed PDF)
-fixtures/qa/          golden callback Q&A per customer (for owner review)
+fixtures/qa/          golden callback Q&A per customer
+fixtures/judge/       judge calibration set (owner labels only; never pre-fill)
+fixtures/ci/          recorded model/embedding responses, sampled members, thresholds (CI replay)
+reports/              per-customer eval reports (markdown + JSON), written by record/CI
+.github/workflows/    CI: lint, types, unit, Postgres integration, fixture eval gate
 fixtures/edge_cases/  hand-built edge-case members with expected gap outcomes
 synthea/              Synthea properties (run parameters are pinned in caregap/data/synthea.py)
 databricks.yml        Databricks Asset Bundle: serverless job running the same pipeline
@@ -61,7 +66,8 @@ docs/adr/             architecture decision records
 
 ## Commands
 - `make up` / `make down` / `make ps` / `make logs`; `make nuke` deletes volumes.
-- `make check`: ruff, mypy --strict, unit tests. Run before every commit.
+- `make check`: ruff, mypy --strict, unit tests. Run before every commit, with `make lint`
+  (it includes the format check CI runs).
 - `make test-all`: unit + integration (fails rather than skips if Postgres is down).
 - `make fmt` auto-fixes lint and formatting.
 - `make seed` generates ~2,000 members + edge cases, loads HAPI, exports NDJSON to
@@ -74,6 +80,11 @@ docs/adr/             architecture decision records
 - `make validate-config` checks every customer config (the core service also does at startup).
 - `make benefits-pdf` after editing `benefits/*.md` (a test fails if the PDFs are stale),
   then `make ingest-benefits`. `make eval-rag CUSTOMER=...` runs the callback Q&A eval.
+- Prompt iteration: edit `prompts/*.yaml`, `make prompts-candidate`, `make eval ALIAS=candidate`
+  (promotes on improvement; on reject, restore the file). `make eval` records a baseline.
+- `make record-fixtures` after a promoted prompt or any change to how requests are built
+  (about 2 hours, live models); review the new numbers, commit `fixtures/ci` and `reports/`.
+  `make eval-ci` replays them (what CI runs). `make label-judge`, `make judge-agreement`.
 - `make eval-voice` runs the TTS -> STT round trip (WER, name WER before/after overrides).
 - Tests marked `models` load real TTS/STT files from `data/cache`; `make check` skips them.
 - `make run-campaign CUSTOMER=horizon` imports the n8n workflows and runs a 20-member
@@ -103,7 +114,9 @@ docs/adr/             architecture decision records
   prompt's variables against them).
 - Anything that differs between customers goes in `customers/*.yaml`, never in code. A new
   capability (language, measure) goes in the platform first, with tests, then a config
-  turns it on. Keep the English prompts untouched until Phase 8 (they are its baseline).
+  turns it on.
+- Prompt changes follow the promotion rule in `caregap.evals.suite`; never move the
+  production alias by hand except to roll back.
 - n8n workflows may only use trigger, HTTP, split, switch/if and respond nodes, and only
   call `$env.CORE_URL` or URLs the core service returns (a test enforces it). Any rule
   goes in `caregap.campaign.service`.

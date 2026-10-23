@@ -12,7 +12,7 @@
 | 5 | Orchestration (n8n + Twilio mock) | Approved |
 | 6 | Multi-customer config | Approved |
 | 7 | RAG callback agent + hallucination analysis | Approved |
-| 8 | LLM-as-a-Judge, prompt iteration, CI gate | Not started |
+| 8 | LLM-as-a-Judge, prompt iteration, CI gate | Built, report posted |
 | 9 | MCP server | Not started |
 | 10 | Observability + governance | Not started |
 | 11 | Live demo mode (optional spend) | Not started |
@@ -104,8 +104,20 @@
 - [x] Owner review of fixtures/qa/*.yaml: approved with no changes requested
 - [x] Phase report posted, approved (2026-10-23)
 
+## Phase 8: LLM-as-a-Judge, prompt iteration, CI gate
+- [x] Judge (clarity, tone, no medical advice; qwen2.5:3b) + computed reading level
+- [x] Calibration set (50 scripts, empty labels), `make label-judge`, `make judge-agreement`
+- [ ] Owner labels -> agreement report (kappa per criterion) -> decide which judge criteria gate
+- [x] `make eval` suite with candidate alias, promotion rule, cached configurations
+- [x] Iterations: v2 rejected, v3 promoted (Sunrise final 68% -> 99%), v4 rejected
+- [x] Record/replay (LLM_FIXTURES), `make record-fixtures`, `make eval-ci`, thresholds
+- [x] GitHub Actions: lint, types, unit, Postgres integration, eval gate
+- [x] Per-customer reports in reports/
+- [ ] Approved
+
 ## Resume here (hand-off between sessions)
-Status: Phases 0-7 approved. Next: post the Phase 8 plan and wait for "go".
+Status: Phases 0-7 approved; Phase 8 built, report posted; waiting for the owner's judge
+labels (fixtures/judge/calibration.csv) and "approved".
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`,
@@ -184,11 +196,19 @@ Environment quirks seen in the cloud container:
 | 2026-10-23 | One benefit line per chunk, k=8 | Section chunks let same-section amounts mix (ER vs urgent care); +18 points Sunrise. |
 | 2026-10-23 | callback-answer v2 rolled back (alias to v1) | Made both customers worse (Horizon raw hallucinations 4.2% -> 9.1%). |
 | 2026-10-23 | Callback Q&A is a text API this phase | Voice loop for inbound calls deferred to Phase 11. Approved default. |
+| 2026-10-23 | Judge on local qwen2.5:3b; reading level computed (Flesch-Kincaid) | Approved defaults; 7B judge does not fit the disk here. ADR 0010. |
+| 2026-10-23 | Judge criteria gate CI only after calibration (kappa >= 0.4) | An uncalibrated judge should not block merges. |
+| 2026-10-23 | Promotion rule applied as agreed even when the judge looked wrong (v2) | Changing a rule after seeing results would make the history meaningless; flagged for the owner. |
+| 2026-10-23 | outreach-script v3 (no health claims) promoted; v2 and v4 ("three sentences") rejected | Measured: v3 +10.3 points mean final pass; v4 on top of v3 -2.3. |
+| 2026-10-23 | CI replays recorded responses keyed by request hash; missing recording fails | CI never calls a model; prompt or request changes force a reviewed re-record. |
 | 2026-10-22 | HAPI default (distroless) image, using its bundled `HealthCheck` probe | The `-tomcat` variant cannot unpack its WAR as non-root and took more than 14 min without ever becoming healthy; the default image is healthy in about 35 s. |
 
 ## Open questions
-- (Decided) Prompt v1's "two sentences" bug (it supplies three) stays as the Phase 8
-  baseline; fixing it is the first measured prompt iteration in Phase 8.
+- (Resolved in Phase 8) Prompt v1's "two sentences" bug: fixing it was measured twice
+  (v2 on v1, v4 on v3) and rejected both times; v3 (no health claims) fixed the dropped
+  disclaimer instead.
+- Judge: qwen2.5:3b looks halo-prone (fails clarity and medical advice together) and
+  flags refill reminders as medical advice; agreement with owner labels pending.
 - `members` rows are upserted, never deleted, by the sync: a member who disappears from
   gold keeps their registry row (their care gaps for the year are removed). Phase 5 now
   references members from campaigns, so deleting them would also need outreach history

@@ -24,7 +24,7 @@ items:
   - {id: hor-05, question: "What is the most I would pay out of pocket in a year?", language: en, expect: answer, route: benefit, section: S3, facts: ["$8,500"]}
   - {id: hor-06, question: "What is the out-of-pocket maximum for a family?", language: en, expect: answer, route: benefit, section: S3, facts: ["$17,000"]}
   - {id: hor-07, question: "How much does it cost to see my primary care doctor?", language: en, expect: answer, route: benefit, section: S4, facts: ["$30"]}
-  - {id: hor-08, question: "Do I have to meet my deductible before a primary care visit is covered?", language: en, expect: answer, route: benefit, section: S4, facts: [[does not apply, doesn't apply, not apply, not subject]]}
+  - {id: hor-08, question: "Do I have to meet my deductible before a primary care visit is covered?", language: en, expect: answer, route: benefit, section: S4, facts: [[does not apply, doesn't apply, not apply, not subject, do not need to meet, don't need to meet, do not have to meet, don't have to meet]]}
   - {id: hor-09, question: "What is my copay to see a specialist?", language: en, expect: answer, route: benefit, section: S4, facts: ["$70"]}
   - {id: hor-10, question: "Do I need a referral to see a dermatologist?", language: en, expect: answer, route: benefit, section: S4, facts: [[no referral, not need a referral, don't need a referral, do not need a referral, without a referral, not required]]}
   - {id: hor-11, question: "How much is a telehealth visit?", language: en, expect: answer, route: benefit, section: S4, facts: ["$10"]}
@@ -44,7 +44,7 @@ items:
   - {id: hor-25, question: "How much is a 90-day mail order supply?", language: en, expect: answer, route: benefit, section: S9, facts: ["2.5"]}
   - {id: hor-26, question: "Does the plan help pay for hearing aids?", language: en, expect: answer, route: benefit, section: S10, facts: [*not_covered]}
   - {id: hor-27, question: "Is there an allowance for over-the-counter items?", language: en, expect: answer, route: benefit, section: S10, facts: [*not_covered]}
-  - {id: hor-28, question: "Do I get money toward new glasses?", language: en, expect: answer, route: benefit, section: S6, facts: [*not_covered]}
+  - {id: hor-28, question: "Do I get money toward new glasses?", language: en, expect: answer, route: benefit, section: S6, facts: [[not covered, isn't covered, is not covered, does not cover, doesn't cover, do not get, don't get, no money, no allowance]]}
   - {id: hor-29, question: "What is the Member Services phone number?", language: en, expect: answer, route: benefit, section: S1, facts: ["555-0120"]}
   - {id: hor-30, question: "What hours is Member Services open?", language: en, expect: answer, route: benefit, section: S1, facts: [[monday to friday, monday through friday, weekdays]]}
 

@@ -7,4 +7,5 @@
 !voice/
 !customers/
 !prompts/
+!benefits/*.pdf
 **/__pycache__

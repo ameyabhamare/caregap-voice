@@ -24,6 +24,8 @@ COPY voice ./voice
 # Customer configs are validated against the prompt files at startup.
 COPY customers ./customers
 COPY prompts ./prompts
+# Summary of Benefits PDFs that callback questions are answered from.
+COPY benefits ./benefits
 # Installing the project itself fetches its build backend (hatchling).
 RUN --mount=type=secret,id=extra_ca \
     if [ -s /run/secrets/extra_ca ]; then \

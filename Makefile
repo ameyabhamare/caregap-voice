@@ -119,9 +119,13 @@ pipeline-databricks: ## Deploy bundle, upload NDJSON, run the job on serverless,
 # --- core service, generation, compliance (Phase 3) ----------------------------
 N ?= 100
 
-.PHONY: prompts-register serve eval-rules eval-voice eval-rag label-judge judge-agreement
+.PHONY: eval prompts-register prompts-candidate serve eval-rules eval-voice eval-rag label-judge judge-agreement
 eval-voice: ## Round-trip TTS->STT WER eval incl. name WER before/after overrides (MLflow)
 	$(UV) python -m caregap.evals.voice
+
+ALIAS ?= production
+eval: ## Script eval suite (rules + judge + reading level) for ALIAS prompts; promotes candidates on improvement
+	$(UV) python -m caregap.evals.suite --alias $(ALIAS)
 
 label-judge: ## Label the judge calibration scripts (owner; resumable)
 	$(UV) python -m caregap.evals.calibration label
@@ -149,6 +153,9 @@ validate-config: ## Validate every customer config in customers/
 
 prompts-register: ## Register changed prompts in MLflow and point "production" at them
 	$(UV) python -m caregap.prompts
+
+prompts-candidate: ## Register changed prompts under the "candidate" alias (for make eval)
+	$(UV) python -m caregap.prompts register --alias candidate
 
 # --- orchestration (Phase 5) ---------------------------------------------------
 N8N_WORKFLOWS := cgCampaignTick01 cgNotifyOutbox01 cgTwilioEvents01
@@ -190,8 +197,6 @@ define todo
 	@echo "make $@: not implemented yet ($(1))"; exit 1
 endef
 
-.PHONY: eval dashboard
-eval: ## [Phase 8] Full eval suite
-	$(call todo,Phase 8)
+.PHONY: dashboard
 dashboard: ## [Phase 10] Streamlit dashboard
 	$(call todo,Phase 10)

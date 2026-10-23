@@ -41,3 +41,24 @@ def test_register_is_idempotent_and_new_text_gets_a_new_version(
     prompt = MlflowPromptStore(tracking_uri).get(name)
     assert prompt.version == "2"
     assert prompt.render(who="Ava")[0].content == "Hello Ava"
+
+
+def test_candidate_alias_then_promote(tracking_uri: str, tmp_path: Path) -> None:
+    from caregap.prompts import promote
+
+    name = f"test-prompt-{uuid.uuid4().hex[:8]}"
+    path = tmp_path / f"{name}.yaml"
+    path.write_text(f"name: {name}\nmessages: [{{role: user, content: 'v1'}}]\n")
+    register_all(tracking_uri, tmp_path)
+    # Same text as production: the candidate alias reuses the production version.
+    assert register_all(tracking_uri, tmp_path, alias="candidate") == [
+        f"{name}: same as production (version 1)"
+    ]
+    path.write_text(f"name: {name}\nmessages: [{{role: user, content: 'v2'}}]\n")
+    assert register_all(tracking_uri, tmp_path, alias="candidate") == [
+        f"{name}: registered version 2 -> candidate"
+    ]
+    assert MlflowPromptStore(tracking_uri).get(name).version == "1"  # production untouched
+    assert MlflowPromptStore(tracking_uri, alias="candidate").get(name).version == "2"
+    assert promote(tracking_uri, "candidate", tmp_path) == [f"{name}: production -> version 2"]
+    assert MlflowPromptStore(tracking_uri).get(name).version == "2"

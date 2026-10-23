@@ -42,9 +42,12 @@ class CampaignPolicy(BaseModel):
 
 
 class OutreachProfile(BaseModel):
+    """One customer in one language: what generation and compliance need."""
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     plan_name: str
+    language: str = "en"
     #: Must appear verbatim (case, spacing and punctuation-insensitive) in every script.
     disclaimer: str
     #: Must appear verbatim, as above.
@@ -55,6 +58,8 @@ class OutreachProfile(BaseModel):
     allowed_member_fields: tuple[str, ...]
     #: How each measure is described to the member: services, never diagnoses or drugs.
     measure_descriptions: dict[str, str]
+    script_prompt: str = "outreach-script"
+    revise_prompt: str = "outreach-script-revise"
     campaign: CampaignPolicy
 
 

@@ -16,7 +16,7 @@ help: ## List targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(firstword $(MAKEFILE_LIST)) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 # --- setup -------------------------------------------------------------------
-.PHONY: install
+.PHONY: install validate-config
 install: ## Install Python deps and pre-commit hooks
 	uv sync
 	$(UV) pre-commit install
@@ -128,6 +128,9 @@ eval-rules: ## Rule-based compliance eval on N members (default 100), logged to 
 
 serve: ## Run the core service API on http://localhost:8000
 	$(UV) uvicorn --factory caregap.api.app:create_app --host 127.0.0.1 --port 8000
+
+validate-config: ## Validate every customer config in customers/
+	$(UV) python -m caregap.customers
 
 prompts-register: ## Register changed prompts in MLflow and point "production" at them
 	$(UV) python -m caregap.prompts

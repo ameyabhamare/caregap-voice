@@ -1,0 +1,51 @@
+# Sunrise Medicare Advantage. Synthetic customer for the demo; every behavior difference
+# between customers comes from files like this one (schema: src/caregap/customers.py).
+id: sunrise
+plan_name: Sunrise Medicare Advantage
+
+# Medicare Advantage: members aged 65 and over (age on Dec 31 of the measurement year).
+members:
+  min_age: 65
+
+# Priority order; a script covers at most max_gaps_per_script open gaps.
+measures: [awv, eye_exam, statin]
+max_words: 120
+max_gaps_per_script: 2
+
+# The only member detail a prompt may see. Everything else is PHI kept out of prompts.
+allowed_member_fields: [given_name]
+
+default_language: en
+languages:
+  en:
+    voice: af_heart
+    say_language: en-US
+    script_prompt: outreach-script
+    revise_prompt: outreach-script-revise
+    disclaimer: >-
+      This message is from Sunrise Medicare Advantage and is for information only.
+      It is not medical advice.
+    opt_out: To stop these calls, press 9 or say stop.
+    goodbye: Thank you for your time. Goodbye.
+    opt_out_confirmation: You will not receive more of these calls. Goodbye.
+    callback_confirmation: Thank you. Someone from our team will call you back. Goodbye.
+    measure_descriptions:
+      awv: a yearly wellness visit with your doctor
+      eye_exam: a yearly eye exam
+      statin: keeping your cholesterol medication refills on schedule
+
+campaign:
+  timezone: America/New_York
+  # Stricter than the TCPA's 8am-9pm, and no Sunday calls.
+  call_window_start: "09:00"
+  call_window_end: "20:00"
+  call_days: [1, 2, 3, 4, 5, 6]
+  max_call_attempts: 3
+  retry_delay_minutes: 240
+  # The first N messages of every campaign wait for a human, even when compliant.
+  approval_first_n: 5
+
+escalation:
+  opt_out_digit: "9"
+  callback_digit: "0"
+  alert_on_delivery_failure: true

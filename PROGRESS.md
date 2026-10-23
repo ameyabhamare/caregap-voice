@@ -11,7 +11,7 @@
 | 4 | Voice (TTS + round trip) | Approved |
 | 5 | Orchestration (n8n + Twilio mock) | Approved |
 | 6 | Multi-customer config | Approved |
-| 7 | RAG callback agent + hallucination analysis | Built, report posted |
+| 7 | RAG callback agent + hallucination analysis | Approved |
 | 8 | LLM-as-a-Judge, prompt iteration, CI gate | Not started |
 | 9 | MCP server | Not started |
 | 10 | Observability + governance | Not started |
@@ -101,11 +101,11 @@
       escalations, `POST /callbacks/questions`
 - [x] Golden Q&A (48 Sunrise incl. 6 Spanish, 40 Horizon), `make eval-rag`, MLflow reports
 - [x] Measured iterations: route v2, v3, line chunks (promoted); answer v2 (rolled back)
-- [ ] Owner review of fixtures/qa/*.yaml
-- [ ] Approved
+- [x] Owner review of fixtures/qa/*.yaml: approved with no changes requested
+- [x] Phase report posted, approved (2026-10-23)
 
 ## Resume here (hand-off between sessions)
-Status: Phases 0-6 approved; Phase 7 built, report posted, waiting for golden Q&A review and "approved".
+Status: Phases 0-7 approved. Next: post the Phase 8 plan and wait for "go".
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`,

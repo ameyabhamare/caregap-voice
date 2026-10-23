@@ -14,10 +14,9 @@ You are continuing the CareGap Voice project. Before doing anything else, read, 
    section with environment quirks and how to rebuild local state.
 4. `docs/adr/` - decisions so far (0001-0009).
 
-State: Phases 0-6 are approved. Phase 7 (RAG callback agent) is built and its report
-posted; the owner is asked to review `fixtures/qa/*.yaml`. Apply their changes, rerun
-`make eval-rag` for both customers, and wait for "approved" before posting the Phase 8
-plan (LLM-as-a-Judge, prompt iteration, CI gate).
+State: Phases 0-7 are approved (golden Q&A approved with no changes requested). Your next
+action is to **post the Phase 8 plan (LLM-as-a-Judge, prompt iteration, CI gate) and wait
+for "go"**. Do not write Phase 8 code before then.
 
 Things the owner has told us that are not obvious from the repo:
 - Reports use the five-section format in BRIEF.md; be concise and honest, including when

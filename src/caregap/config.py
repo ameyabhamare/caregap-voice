@@ -23,6 +23,9 @@ class Settings(BaseSettings):
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:3b"
+    #: Local embedding model for benefit documents (always Ollama). The vector column is
+    #: 768-dimensional, so a model with another size needs a schema change.
+    embed_model: str = "nomic-embed-text"
 
     anthropic_api_key: SecretStr | None = None
     claude_model: str = "claude-opus-5-5"

@@ -6,8 +6,8 @@
 ``record`` samples the suite's members from the database, saves them to
 ``fixtures/ci/cases/``, and runs the script suite (rules + judge + reading level) and the
 callback Q&A eval with ``LLM_FIXTURES=record``, so every model and embedding response
-lands in ``fixtures/ci/``. It writes the metrics it saw and thresholds derived from them
-(``fixtures/ci/thresholds.json``).
+lands in ``fixtures/ci/``. It then replays them once and writes those metrics and the
+thresholds derived from them (``fixtures/ci/thresholds.json``).
 
 ``check`` runs the same evals with ``LLM_FIXTURES=replay`` from those fixtures alone (no
 member database, no MLflow, no model) and fails if any gated metric is below its
@@ -253,11 +253,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "record":
         for name in ("llm.jsonl", "embeddings.jsonl"):
             (FIXTURES / name).unlink(missing_ok=True)  # only what this run needs
-        metrics = run_all(settings, customers, live_cases=True)
+        run_all(settings, customers, live_cases=True)
+        # Thresholds and reports come from a replay of what was just recorded, so they
+        # match CI exactly. (Identical requests can get different answers from a local
+        # model within one run; replay serves the first, as CI will.)
+        replay = settings.model_copy(update={"llm_fixtures": "replay"})
+        metrics = run_all(replay, customers, live_cases=False)
         (FIXTURES / "recorded_metrics.json").write_text(
             json.dumps(metrics, indent=2, sort_keys=True) + "\n")  # fmt: skip
         THRESHOLDS.write_text(json.dumps(derive_thresholds(metrics), indent=2) + "\n")
-        write_reports(metrics, customers, source="recorded run (live models)",
+        write_reports(metrics, customers, source="recorded fixtures (replayed)",
                       extra=_voice_metrics(settings))  # fmt: skip
         print(f"[eval-ci] recorded fixtures and thresholds in {FIXTURES}")
         return 0

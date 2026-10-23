@@ -1,0 +1,63 @@
+{
+  "id": "cgErrorAlerts001",
+  "name": "CareGap: workflow error alerts",
+  "description": null,
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "84594187-e3ca-5520-abde-3ce0fc2c6a77",
+      "name": "On workflow error",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CORE_URL }}/alerts",
+        "options": {
+          "timeout": 60000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflow: $json.workflow.name, node: $json.execution.lastNodeExecuted ?? null, message: String($json.execution.error?.message ?? 'unknown error'), execution: String($json.execution.id ?? '') }) }}"
+      },
+      "id": "f17bf175-b468-5605-b711-b3457986f7c9",
+      "name": "Record alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "On workflow error": {
+      "main": [
+        [
+          {
+            "node": "Record alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "meta": null,
+  "pinData": {},
+  "versionId": "69aaf193-1067-52a8-9af9-c6c23070e933",
+  "tags": []
+}

@@ -6,6 +6,9 @@ UV := uv run
 
 # Load .env so targets see the same settings as the app and compose.
 -include .env
+# Containers that write to ./data run as you.
+HOST_UID ?= $(shell id -u)
+HOST_GID ?= $(shell id -g)
 export
 
 .PHONY: help
@@ -129,15 +132,46 @@ serve: ## Run the core service API on http://localhost:8000
 prompts-register: ## Register changed prompts in MLflow and point "production" at them
 	$(UV) python -m caregap.prompts
 
+# --- orchestration (Phase 5) ---------------------------------------------------
+N8N_WORKFLOWS := cgCampaignTick01 cgNotifyOutbox01 cgTwilioEvents01
+CAMPAIGN_SIZE ?= 20
+
+.PHONY: seed-consent n8n-import n8n-export run-campaign
+seed-consent: ## Give members synthetic voice consent (keeps existing rows)
+	$(UV) python -m caregap.campaign.consent
+
+n8n-import: ## Load n8n/workflows into n8n and activate them (restarts n8n)
+	$(COMPOSE) exec -T n8n n8n import:workflow --separate --input=/workflows
+	for id in $(N8N_WORKFLOWS); do \
+		$(COMPOSE) exec -T n8n n8n update:workflow --id=$$id --active=true || exit 1; done
+	$(COMPOSE) restart n8n
+	$(COMPOSE) up -d --wait n8n
+
+n8n-export: ## Export workflows from n8n back into n8n/workflows (after editing in the UI)
+	$(COMPOSE) exec -T -u node n8n sh -c 'rm -rf /tmp/wf && mkdir /tmp/wf && \
+		n8n export:workflow --all --separate --pretty --output=/tmp/wf'
+	for pair in cgCampaignTick01:campaign-tick cgTwilioEvents01:twilio-events \
+		cgNotifyOutbox01:notify-outbox cgErrorAlerts001:error-alerts; do \
+		$(COMPOSE) exec -T n8n cat /tmp/wf/$${pair%%:*}.json > n8n/workflows/$${pair#*:}.json \
+			|| exit 1; \
+	done
+	@# Drop install-specific fields (owner project, timestamps, counters) so exports diff cleanly.
+	python3 -c 'import json, pathlib; drop = {"shared", "createdAt", "updatedAt", \
+		"triggerCount", "versionCounter", "staticData", "isArchived"}; \
+		[p.write_text(json.dumps({k: v for k, v in json.loads(p.read_text()).items() \
+		if k not in drop} | {"active": False}, indent=2) + "\n") \
+		for p in pathlib.Path("n8n/workflows").glob("*.json")]'
+
+run-campaign: n8n-import ## End-to-end campaign for CAMPAIGN_SIZE members through n8n + Twilio mock
+	$(UV) python -m caregap.campaign.run --size $(CAMPAIGN_SIZE) $(CAMPAIGN_ARGS)
+
 # --- later phases (placeholders) ---------------------------------------------
 define todo
 	@echo "make $@: not implemented yet ($(1))"; exit 1
 endef
 
-.PHONY: eval run-campaign dashboard
+.PHONY: eval dashboard
 eval: ## [Phase 8] Full eval suite
 	$(call todo,Phase 8)
-run-campaign: ## [Phase 5] End-to-end campaign run
-	$(call todo,Phase 5)
 dashboard: ## [Phase 10] Streamlit dashboard
 	$(call todo,Phase 10)

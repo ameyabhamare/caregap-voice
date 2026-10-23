@@ -1,0 +1,102 @@
+{
+  "id": "cgTwilioEvents01",
+  "name": "CareGap: Twilio callbacks",
+  "description": null,
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "twilio-events",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "3fa4a93c-826c-5ede-8be8-5a9b0edac474",
+      "name": "Twilio callback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "c184d41b-7879-5ed3-9c9a-854ea4046803"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CORE_URL }}/telephony/events",
+        "options": {
+          "timeout": 60000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: $json.query, body: $json.body, signature: $json.headers['x-twilio-signature'] ?? '' }) }}"
+      },
+      "id": "cc205ef1-2375-501c-88bd-48c4b0c58b98",
+      "name": "Relay to core",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.twiml ?? '<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response/>' }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/xml"
+              }
+            ]
+          }
+        }
+      },
+      "id": "1303def8-7fe1-5f61-a013-7e45a5ed778d",
+      "name": "Reply with TwiML",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Twilio callback": {
+      "main": [
+        [
+          {
+            "node": "Relay to core",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Relay to core": {
+      "main": [
+        [
+          {
+            "node": "Reply with TwiML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "errorWorkflow": "cgErrorAlerts001"
+  },
+  "meta": null,
+  "pinData": {},
+  "versionId": "e1f6d605-3427-53df-8052-6e8a632a2af4",
+  "tags": []
+}

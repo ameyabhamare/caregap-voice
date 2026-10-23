@@ -32,9 +32,10 @@ make pipeline     # bronze/silver/gold + care-gap detection with local PySpark
 make sync-gaps    # load members and care gaps into Postgres
 make pull-model   # qwen2.5:3b for Ollama (~2 GB)
 make prompts-register   # register prompts/*.yaml in MLflow
-make serve        # core service API on http://localhost:8000 (docs at /docs)
+make serve        # core service on the host (dev; compose also runs it as `core`)
 make eval-rules   # compliance eval on 100 members, logged to MLflow
 make eval-voice   # TTS -> STT round trip: WER, drug/plan name accuracy with/without overrides
+make run-campaign # 20-member campaign end to end: n8n -> core service -> Twilio mock
 make check        # lint, typecheck, unit tests
 make test-all     # adds integration tests against the running stack
 ```
@@ -45,6 +46,9 @@ make test-all     # adds integration tests against the running stack
 | MLflow     | http://localhost:5000        |
 | Ollama     | http://localhost:11434       |
 | HAPI FHIR  | http://localhost:8080/fhir   |
+| Core service | http://localhost:8000 (docs at `/docs`) |
+| n8n        | http://localhost:5678        |
+| Twilio mock | http://localhost:8100 (`/mock/calls` lists calls) |
 
 HAPI FHIR takes about a minute to become healthy on first start.
 
@@ -96,6 +100,43 @@ audio with faster-whisper and measures word error rate. See
 | Outreach scripts, corpus WER (100 scripts) | - | 2.3% |
 | Medication names transcribed exactly (44) | 54.5% | 88.6% |
 | Plan names transcribed exactly (13) | 100% | 100% |
+
+### Campaigns (orchestration)
+
+`make run-campaign` creates a campaign for 20 members with open gaps and drives it through
+**n8n** to a local **Twilio mock**. Every decision (consent, call window, first-N human
+approval, retries, opt-out, escalation) is made by the core service; n8n only schedules,
+routes and calls its API, and a test keeps it that way. Twilio callbacks are
+signature-checked. Alerts and escalations go to a Slack-compatible webhook (default: a
+local log at `data/notifications.log`). See
+[ADR 0007](docs/adr/0007-orchestration-n8n-and-twilio-mock.md).
+
+```
+selected -> skipped (deceased / no consent / revoked / bad phone)
+         -> script -> held for a human (first 5, or failed compliance) -> approved
+         -> call (09:00-20:00 local, Mon-Sat) -> completed | opted out (9) | escalated (0)
+         -> no answer / busy / failed -> retry (max 3 calls) -> failed + alert
+```
+
+Two runs of 20 members each (qwen2.5:3b, Kokoro, mock telephony; about 11 minutes each,
+dominated by local generation):
+
+| | Default mock outcomes | `--cover-outcomes` (every call path) |
+|---|---|---|
+| Skipped at selection | 1 (consent revoked) | 4 (2 bad phone, 1 revoked, 1 unknown consent) |
+| Scripts held for a human | 14 (3 first-N, 11 failed compliance) | 7 (4 first-N, 3 failed compliance) |
+| Calls placed | 12 (8 completed, 4 no answer, retried) | 21 (10 completed, 5 no answer, 3 busy, 3 failed) |
+| Final | 8 completed, 11 waiting on review | 6 completed, 3 opted out, 1 escalated, 3 failed after 3 calls, 3 waiting on review |
+| Escalations delivered | 0 | 4 (3 delivery failures, 1 call-back request) |
+
+Compliance failures are all the dropped-disclaimer issue of prompt v1, kept as the
+Phase 8 baseline.
+`make run-campaign CAMPAIGN_ARGS=--cover-outcomes` exercises every call path (script
+generation is not deterministic, so counts vary between runs).
+
+The demo clock (`CAMPAIGN_CLOCK` in `.env`) puts the service inside the call window
+whatever the real time is; leave it empty to use real time. Edit workflows in the n8n UI
+and `make n8n-export` them back into `n8n/workflows/`.
 
 > Upgrading from Phase 0: HAPI moved from H2 to Postgres. Run `make nuke && make up` once
 > so Postgres creates the `hapi` database.

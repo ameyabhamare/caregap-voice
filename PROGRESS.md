@@ -9,7 +9,7 @@
 | 2 | Databricks pipeline + gap detection | Approved |
 | 3 | Core service, generation, compliance | Approved |
 | 4 | Voice (TTS + round trip) | Approved |
-| 5 | Orchestration (n8n + Twilio mock) | Not started |
+| 5 | Orchestration (n8n + Twilio mock) | Built, report posted |
 | 6 | Multi-customer config | Not started |
 | 7 | RAG callback agent + hallucination analysis | Not started |
 | 8 | LLM-as-a-Judge, prompt iteration, CI gate | Not started |
@@ -67,8 +67,22 @@
 - [x] Dictionary v1 made names worse (54.5% -> 36.4%, run e5edd9b9): stress-mark convention bug, fixed
 - [x] Phase report posted, approved (2026-10-22)
 
+## Phase 5: Orchestration (n8n + Twilio mock)
+- [x] Campaign policy in the outreach profile: call window, retries, first-N approval
+- [x] Schema: consent, campaigns, campaign_members, call_attempts, telephony_events, escalations
+- [x] Synthetic consent (90/5/5, deterministic), `make seed-consent`
+- [x] Campaign service + API: selection with skip reasons, idempotent claims, approval gate,
+      call window, retries, DTMF opt-out/escalation, stuck-work recovery, generation cap,
+      notification outbox
+- [x] Twilio wire format (signatures, TwiML) and a local Twilio mock service
+- [x] Core service, Twilio mock and n8n 1.121.3 in compose
+- [x] Four n8n workflows (tick, Twilio callbacks, notification delivery, error alerts),
+      `make n8n-import` / `make n8n-export`; test keeps them free of business logic
+- [x] `make run-campaign` (20 members) - see the phase report for the run
+- [ ] Approved
+
 ## Resume here (hand-off between sessions)
-Status: Phases 0-4 approved. Next: post the Phase 5 plan and wait for "go".
+Status: Phases 0-4 approved; Phase 5 built, report posted, waiting for "approved".
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`, and
@@ -84,6 +98,16 @@ Environment quirks seen in the cloud container:
   `DATABRICKS_TOKEN` in `.env`. Install the Databricks CLI v1.22.1 from GitHub releases.
 - PySpark 4.0.4 builds from source on first `uv sync` (several minutes).
 - Kokoro model files download from GitHub releases into data/cache/kokoro on first use.
+  Containers have no DNS here: render once on the host (or copy the files) before the
+  `core` container needs them.
+- Docker Hub rate-limits (429). `mirror.gcr.io/library/...` and `mirror.gcr.io/n8nio/n8n`
+  work: pull from the mirror and `docker tag` to the pinned name.
+- Image builds need the proxy CA: `cp /root/.ccr/ca-bundle.crt docker/extra-ca.pem` and
+  `BUILD_EXTRA_CA_CERT=./docker/extra-ca.pem` in `.env` (gitignored).
+- The disk allowance is small: `docker builder prune` and `uv cache clean` free GBs; avoid
+  rebuilding the core image from an empty cache when space is low.
+- Start the stack through `make` (it sets HOST_UID/GID); plain `docker compose up` runs
+  `core` as uid 1000, which cannot write a root-owned `data/`.
 
 ## Decisions log
 | Date | Decision | Why |
@@ -115,14 +139,26 @@ Environment quirks seen in the cloud container:
 | 2026-10-22 | kokoro-onnx (no PyTorch) for TTS, faster-whisper small.en for STT | Approved in Phase 4 plan. ADR 0006. |
 | 2026-10-22 | PyAV pinned <19 | PyAV 19 removed an argument faster-whisper 1.2.1 passes; every transcription crashed. |
 | 2026-10-22 | Override IPA follows espeak's stress convention (mark before the vowel) | v1 used dictionary convention and made names worse; v2 fixed it (+34 points). Test enforces it. |
+| 2026-10-23 | All campaign decisions in the core service; n8n only schedules, routes and calls it | Brief: no business logic in n8n. A test limits node types and URLs. ADR 0007. |
+| 2026-10-23 | n8n places the Twilio call with a request built by the core service | Matches the Phase 11 shape (n8n hands Twilio the audio URL). |
+| 2026-10-23 | Callback signatures checked against the URL the core service issued | n8n relays callbacks; the relay must not be able to change what was signed. |
+| 2026-10-23 | Unknown consent means no call; synthetic consent 90/5/5 | Synthea has no consent records. Approved default. |
+| 2026-10-23 | First-N holds reuse the review queue (`pending_approval`); failed scripts count toward N | Approved default (N=5). |
+| 2026-10-23 | Notifications through an outbox delivered by n8n, Slack-compatible | Channel outages delay, never lose, alerts. Internal IDs only. |
+| 2026-10-23 | n8n 1.121.3 with SQLite (deviation: plan said Postgres) | 1.122+ cannot activate CLI-imported workflows; SQLite avoids creating a DB on existing volumes. |
+| 2026-10-23 | At most 2 scripts generated at once | Found in the first 20-member run: unbounded claims queued 32 requests on Ollama. |
+| 2026-10-23 | `CAMPAIGN_CLOCK` demo clock | `make run-campaign` must work at any real time of day. |
 | 2026-10-22 | HAPI default (distroless) image, using its bundled `HealthCheck` probe | The `-tomcat` variant cannot unpack its WAR as non-root and took more than 14 min without ever becoming healthy; the default image is healthy in about 35 s. |
 
 ## Open questions
 - (Decided) Prompt v1's "two sentences" bug (it supplies three) stays as the Phase 8
   baseline; fixing it is the first measured prompt iteration in Phase 8.
 - `members` rows are upserted, never deleted, by the sync: a member who disappears from
-  gold keeps their registry row (their care gaps for the year are removed). Revisit with
-  outreach history in Phase 5.
+  gold keeps their registry row (their care gaps for the year are removed). Phase 5 now
+  references members from campaigns, so deleting them would also need outreach history
+  handling; keeping the upsert-only behaviour.
+- Spoken confirmations after DTMF (opt-out, call-back, goodbye) are in the profile in
+  English only; Phase 6 adds Spanish.
 - (Resolved) Edge-case expectations and measure definitions reviewed and accepted.
 - Statin prevalence is high in Synthea (738 of 2,000 members, 37%). Fine for testing; not
   representative of a real plan.

@@ -58,7 +58,7 @@ def test_agreement_and_kappa() -> None:
     assert (perfect.accuracy, perfect.kappa) == (1.0, 1.0)
     # Textbook case: po = 0.7, pe = 0.5 -> kappa 0.4
     owner = [True] * 5 + [False] * 5
-    judge: list[bool | None] = [True] * 4 + [False] + [True] * 2 + [False] * 3
+    judge: list[bool | None] = [True, True, True, True, False, True, True, False, False, False]
     a = agreement(owner, judge)
     assert a.accuracy == pytest.approx(0.7) and a.kappa == pytest.approx(0.4)
     assert a.confusion["owner_pass_judge_pass"] == 4

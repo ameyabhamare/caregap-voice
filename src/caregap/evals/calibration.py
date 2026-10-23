@@ -5,9 +5,9 @@
     python -m caregap.evals.calibration agreement   # make judge-agreement (MLflow)
 
 The CSV (``fixtures/judge/calibration.csv``) holds 50 distinct English scripts from
-earlier eval runs with empty label columns. Labels are ``y`` (pass) or ``n`` (fail) per criterion and
-come only from the owner: nothing here pre-fills or suggests them. Agreement is reported
-per criterion as accuracy and Cohen's kappa, with the confusion counts.
+earlier eval runs with empty label columns. Labels are ``y`` (pass) or ``n`` (fail) per
+criterion and come only from the owner: nothing here pre-fills or suggests them.
+Agreement is reported per criterion as accuracy and Cohen's kappa, with confusion counts.
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ def sample(
         passed = [r for r in unique if r["status"] == "compliant"][: n - len(failed)]
         chosen[customer] = sorted(failed + passed, key=lambda r: _key(r["script"]))
         left -= len(chosen[customer])
-    out = []
+    out: list[dict[str, str]] = []
     for customer in rows_by_customer:
         for r in chosen[customer]:
             out.append({"id": f"cal-{len(out) + 1:02d}", "customer": customer,

@@ -2,10 +2,10 @@
 
     python -m caregap.rag.store          # make ingest-benefits
 
-Each customer's Summary of Benefits PDF is split into its numbered sections; a long
-section is split further with LangChain's recursive splitter, keeping its heading on every
-piece. Chunks are embedded and replace that customer's rows in one transaction, so
-re-running is idempotent. Search is always filtered to one customer.
+Each customer's Summary of Benefits PDF is split into its numbered sections and then
+into one chunk per benefit line (LangChain's recursive splitter handles over-long lines),
+each keeping its section title. Chunks are embedded and replace that customer's rows in
+one transaction, so re-running is idempotent. Search is always filtered to one customer.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from psycopg.rows import dict_row
 from caregap.customers import CustomerConfig
 from caregap.rag.documents import read_pdf, sections
 
-#: Sections longer than this are split (characters; every current section fits in one).
+#: Lines longer than this are split (characters; no current line is that long).
 CHUNK_SIZE = 900
 
 
@@ -47,15 +47,27 @@ class Chunk:
 
 
 def chunk_document(customer: str, text: str) -> list[Chunk]:
+    """One chunk per benefit line, so a citation points at one benefit and the amount
+    check can tell neighbouring benefits apart. Each chunk keeps its section title, and
+    a line under a list header ("Cost per 30-day supply ...:") keeps the header too.
+    Lines longer than ``CHUNK_SIZE`` are split further."""
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE, chunk_overlap=0, separators=["\n", ". ", " "]
     )
     chunks = []
     for s in sections(text):
-        for n, piece in enumerate(splitter.split_text(s.text), 1):
-            chunks.append(
-                Chunk(f"{customer}:{s.id}-{n}", customer, s.id, s.title, f"{s.title}\n{piece}")
-            )
+        header = ""
+        n = 0
+        for line in s.text.splitlines():
+            if line.endswith(":"):
+                header = f"{line} "
+                continue
+            if ": " not in line:
+                header = ""  # past the list: plain sentences stand on their own
+            for piece in splitter.split_text(line):
+                n += 1
+                chunks.append(Chunk(f"{customer}:{s.id}-{n}", customer, s.id, s.title,
+                                    f"{s.title}: {header}{piece}"))  # fmt: skip
     return chunks
 
 
@@ -111,7 +123,7 @@ class BenefitRetriever(BaseRetriever):
     store: Any
     embeddings: Embeddings
     customer: str
-    k: int = 4
+    k: int = 8
 
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun

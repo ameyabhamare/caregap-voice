@@ -143,10 +143,16 @@ def test_route_prompt_sees_only_the_question() -> None:
     assert sent[-1].content == "Should I stop my statin?"
 
 
-def test_chunking_keeps_section_ids_and_headings() -> None:
-    text = "1. About\nPlan facts.\n2. Costs\nPremium: $0.\n"
+def test_chunking_is_one_benefit_per_chunk_with_its_context() -> None:
+    text = (
+        "1. About\nPlan facts.\n"
+        "2. Drugs\nCost per 30-day supply:\nTier 1: $0 copay.\nTier 2: $10 copay.\n"
+        "Statins are on Tier 1.\n"
+    )
     chunks = chunk_document("sunrise", text)
     assert [(c.id, c.citation, c.text) for c in chunks] == [
-        ("sunrise:S1-1", "S1-1", "About\nPlan facts."),
-        ("sunrise:S2-1", "S2-1", "Costs\nPremium: $0."),
+        ("sunrise:S1-1", "S1-1", "About: Plan facts."),
+        ("sunrise:S2-1", "S2-1", "Drugs: Cost per 30-day supply: Tier 1: $0 copay."),
+        ("sunrise:S2-2", "S2-2", "Drugs: Cost per 30-day supply: Tier 2: $10 copay."),
+        ("sunrise:S2-3", "S2-3", "Drugs: Statins are on Tier 1."),
     ]

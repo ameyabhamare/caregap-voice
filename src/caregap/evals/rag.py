@@ -308,7 +308,7 @@ def main(argv: list[str] | None = None) -> None:
 
     ap = argparse.ArgumentParser(prog="python -m caregap.evals.rag")
     ap.add_argument("--customer", default="sunrise")
-    ap.add_argument("-k", type=int, default=4)
+    ap.add_argument("-k", type=int, default=8)
     args = ap.parse_args(argv)
 
     settings = get_settings()

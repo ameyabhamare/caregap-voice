@@ -119,9 +119,15 @@ pipeline-databricks: ## Deploy bundle, upload NDJSON, run the job on serverless,
 # --- core service, generation, compliance (Phase 3) ----------------------------
 N ?= 100
 
-.PHONY: prompts-register serve eval-rules eval-voice eval-rag
+.PHONY: prompts-register serve eval-rules eval-voice eval-rag label-judge judge-agreement
 eval-voice: ## Round-trip TTS->STT WER eval incl. name WER before/after overrides (MLflow)
 	$(UV) python -m caregap.evals.voice
+
+label-judge: ## Label the judge calibration scripts (owner; resumable)
+	$(UV) python -m caregap.evals.calibration label
+
+judge-agreement: ## Judge vs owner labels: accuracy and Cohen's kappa per criterion (MLflow)
+	$(UV) python -m caregap.evals.calibration agreement
 
 eval-rag: ## Callback Q&A hallucination report for CUSTOMER (golden set in fixtures/qa), MLflow
 	$(UV) python -m caregap.evals.rag --customer $(CUSTOMER)

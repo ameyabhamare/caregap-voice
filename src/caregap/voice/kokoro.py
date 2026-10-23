@@ -66,7 +66,10 @@ class KokoroTTS:
         def g2p(chunk: str) -> str:
             return str(self._kokoro.tokenizer.phonemize(chunk, lang))
 
-        return self.overrides.to_phonemes(text, g2p) if self.overrides else g2p(text)
+        # Override IPA is English; other languages use espeak's own pronunciation.
+        if self.overrides and lang.startswith("en"):
+            return self.overrides.to_phonemes(text, g2p)
+        return g2p(text)
 
     def synthesize(self, text: str, *, voice: str = DEFAULT_VOICE, lang: str = "en-us") -> Audio:
         samples, rate = self._kokoro.create(

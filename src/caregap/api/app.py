@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Mapping
 from datetime import UTC, date, datetime
 from typing import Any, Literal
 from urllib.parse import parse_qsl
@@ -50,10 +51,12 @@ from caregap.campaign.service import (
 )
 from caregap.config import Settings, get_settings
 from caregap.cost import BudgetExceededError
-from caregap.llm.base import ProviderError
+from caregap.customers import LANGUAGES, CustomerConfig, customer_for, load_all
+from caregap.llm.base import LLMClient, ProviderError
 from caregap.outreach.generate import ScriptGenerator
-from caregap.outreach.profile import DEFAULT_PROFILE, OutreachProfile
+from caregap.outreach.profile import OutreachProfile
 from caregap.outreach.store import NotFoundError, OutreachStore, ReviewConflictError
+from caregap.prompts import PromptStore
 from caregap.voice.render import AudioRenderer, NotRenderableError, RenderedAudio, latest_audio
 
 DEFAULT_YEAR = 2025
@@ -71,6 +74,8 @@ class GapOut(BaseModel):
 class ScriptRequest(BaseModel):
     member_id: str
     measurement_year: int = DEFAULT_YEAR
+    #: Defaults to the customer whose member rule includes the member.
+    customer: str | None = None
 
 
 class ViolationOut(BaseModel):
@@ -80,6 +85,8 @@ class ViolationOut(BaseModel):
 
 class ScriptOut(BaseModel):
     id: int
+    customer: str
+    language: str
     member_id: str
     measurement_year: int
     measures: list[str]
@@ -113,6 +120,7 @@ class AudioOut(BaseModel):
 
 
 class CampaignRequest(BaseModel):
+    customer: str
     name: str = "campaign"
     size: int = Field(default=20, ge=1, le=5000)
     measurement_year: int = DEFAULT_YEAR
@@ -159,27 +167,42 @@ def create_app(
     settings: Settings | None = None,
     *,
     store: OutreachStore | None = None,
-    generator: ScriptGenerator | None = None,
+    llm: LLMClient | None = None,
+    prompts: PromptStore | None = None,
     renderer: AudioRenderer | None = None,
     clock: Clock | None = None,
-    profile: OutreachProfile = DEFAULT_PROFILE,
+    customers: Mapping[str, CustomerConfig] | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     store = store or OutreachStore(settings.database_url)
-    if generator is None:
+    # Fail at startup, not mid-campaign, if a config is invalid.
+    configs = dict(customers) if customers is not None else load_all(settings.customers_dir)
+    if llm is None:
         from caregap.llm.factory import build_client
+
+        llm = build_client(settings)
+    if prompts is None:
         from caregap.prompts import MlflowPromptStore
 
-        client = build_client(settings)
-        # Claude spends output tokens on thinking, so it needs more headroom.
-        max_tokens = 4000 if settings.llm_provider == "claude" else 600
-        generator = ScriptGenerator(
-            client,
-            MlflowPromptStore(settings.mlflow_tracking_uri),
-            profile,
-            max_output_tokens=max_tokens,
-        )
-    gen = generator
+        prompts = MlflowPromptStore(settings.mlflow_tracking_uri)
+    # Claude spends output tokens on thinking, so it needs more headroom.
+    max_tokens = 4000 if settings.llm_provider == "claude" else 600
+    client, prompt_store = llm, prompts
+    generators: dict[str, ScriptGenerator] = {}
+
+    def generator_for(profile: OutreachProfile) -> ScriptGenerator:
+        key = profile.model_dump_json()
+        if key not in generators:
+            generators[key] = ScriptGenerator(
+                client, prompt_store, profile, max_output_tokens=max_tokens
+            )
+        return generators[key]
+
+    def customer(customer_id: str) -> CustomerConfig:
+        if customer_id not in configs:
+            raise HTTPException(404, f"customer {customer_id!r} is not configured")
+        return configs[customer_id]
+
     cfg = settings
     renderers: list[AudioRenderer] = [renderer] if renderer else []
 
@@ -193,7 +216,6 @@ def create_app(
                     cfg.database_url,
                     build_tts(cfg.data_dir, overrides=cfg.tts_pronunciation_overrides),
                     cfg.data_dir / "audio",
-                    voice=cfg.tts_voice,
                     overrides_enabled=cfg.tts_pronunciation_overrides,
                 )
             )
@@ -202,9 +224,9 @@ def create_app(
     campaigns = CampaignService(
         settings.database_url,
         outreach=store,
-        generator=gen,
+        generators=generator_for,
         renderer=get_renderer,
-        profile=profile,
+        customers=configs,
         telephony=TelephonyConfig(
             public_base_url=settings.public_base_url,
             callback_url=settings.twilio_callback_url,
@@ -242,8 +264,8 @@ def create_app(
     def health() -> dict[str, str]:
         return {
             "status": "ok",
-            "provider": gen.client.provider.name,
-            "model": gen.client.model,
+            "provider": client.provider.name,
+            "model": client.model,
             "clock": campaigns.clock.now().isoformat(),
         }
 
@@ -261,13 +283,25 @@ def create_app(
             member = store.member(req.member_id)
         except NotFoundError as exc:
             raise HTTPException(404, str(exc)) from exc
+        if req.customer is not None:
+            c = customer(req.customer)
+            if not c.members.includes(member.birth_date, req.measurement_year):
+                raise HTTPException(409, f"member {req.member_id} is not a {c.id} member")
+        else:
+            found = customer_for(configs, member.birth_date, req.measurement_year)
+            if found is None:
+                raise HTTPException(409, f"member {req.member_id} has no configured customer")
+            c = found
         open_measures = [
-            g.measure for g in store.gaps(req.member_id, req.measurement_year) if g.status == "gap"
+            g.measure
+            for g in store.gaps(req.member_id, req.measurement_year)
+            if g.status == "gap" and g.measure in c.measures
         ]
         if not open_measures:
-            raise HTTPException(409, f"member {req.member_id} has no open gaps")
-        outcome = gen.generate(member, open_measures)
-        script_id = store.save_script(outcome, req.measurement_year)
+            raise HTTPException(409, f"member {req.member_id} has no open gaps for {c.id}")
+        profile = c.profile(c.language_for(member.language))
+        outcome = generator_for(profile).generate(member, open_measures)
+        script_id = store.save_script(outcome, req.measurement_year, customer=c.id)
         return _script_out(store.script(script_id))
 
     @app.get("/scripts/{script_id}")
@@ -296,7 +330,13 @@ def create_app(
     @app.post("/scripts/{script_id}/audio", status_code=201)
     def render_audio(script_id: int) -> AudioOut:
         try:
-            return _audio_out(get_renderer().render(store.script(script_id)))
+            script = store.script(script_id)
+            lang = customer(script["customer"]).languages[script["language"]]
+            return _audio_out(
+                get_renderer().render(
+                    script, voice=lang.voice, lang=LANGUAGES[script["language"]].tts_lang
+                )
+            )
         except NotFoundError as exc:
             raise HTTPException(404, str(exc)) from exc
         except NotRenderableError as exc:
@@ -313,7 +353,9 @@ def create_app(
 
     @app.post("/campaigns", status_code=201)
     def create_campaign(req: CampaignRequest) -> dict[str, Any]:
+        customer(req.customer)
         return campaigns.create(
+            customer=req.customer,
             name=req.name,
             size=req.size,
             measurement_year=req.measurement_year,

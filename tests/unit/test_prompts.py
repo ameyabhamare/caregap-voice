@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from caregap.outreach.profile import DEFAULT_PROFILE
 from caregap.prompts import FilePromptStore, Prompt
+from tests.helpers import P
 
 
 def test_outreach_prompt_renders_all_variables() -> None:
@@ -12,11 +12,11 @@ def test_outreach_prompt_renders_all_variables() -> None:
         "plan_name", "max_words", "disclaimer", "opt_out", "given_name", "services",
     }  # fmt: skip
     messages = prompt.render(
-        plan_name=DEFAULT_PROFILE.plan_name, max_words=120, disclaimer=DEFAULT_PROFILE.disclaimer,
-        opt_out=DEFAULT_PROFILE.opt_out, given_name="Ava", services="- a yearly eye exam",
+        plan_name=P.plan_name, max_words=120, disclaimer=P.disclaimer,
+        opt_out=P.opt_out, given_name="Ava", services="- a yearly eye exam",
     )  # fmt: skip
     assert [m.role for m in messages] == ["system", "user"]
-    assert DEFAULT_PROFILE.disclaimer in messages[0].content
+    assert P.disclaimer in messages[0].content
     assert "{{" not in messages[0].content + messages[1].content
 
 

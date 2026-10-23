@@ -1,10 +1,12 @@
 """Rule-based eval: compliance pass rates for generated scripts, logged to MLflow.
 
-    make eval-rules N=100
+    make eval-rules N=100 CUSTOMER=sunrise [LANGUAGE=es]
 
-Members are a deterministic sample (ordered by a hash of the member ID) of members with
-at least one open gap. Each goes through the same generate -> check -> revise flow as
-the service, without writing to the review queue.
+Members are a deterministic sample (ordered by a hash of the member ID) of the customer's
+members with at least one open gap in the customer's measures, optionally only members
+whose script language is LANGUAGE. Each goes through the same generate -> check ->
+revise flow as the service, in the member's language, without writing to the review
+queue.
 """
 
 from __future__ import annotations
@@ -16,12 +18,13 @@ import json
 import statistics
 import subprocess
 from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 import psycopg
 
+from caregap.customers import CustomerConfig
 from caregap.llm.base import ProviderError
 from caregap.outreach.compliance import MemberContext
 from caregap.outreach.generate import COMPLIANT, ScriptGenerator, ScriptOutcome
@@ -38,19 +41,32 @@ class MemberSource(Protocol):
 class EvalCase:
     member_id: str
     open_measures: list[str]
+    #: Script language (the member's, if the customer supports it).
+    language: str = "en"
 
 
-def sample_cases(conninfo: str, year: int, n: int) -> list[EvalCase]:
+def sample_cases(
+    conninfo: str, customer: CustomerConfig, year: int, n: int, language: str | None = None
+) -> list[EvalCase]:
+    lo, hi = customer.members.bounds()
     with psycopg.connect(conninfo) as conn:
         rows = conn.execute(
             """
-            SELECT member_id, array_agg(measure ORDER BY measure)
-            FROM care_gaps WHERE measurement_year = %s AND status = 'gap'
-            GROUP BY member_id ORDER BY md5(member_id) LIMIT %s
+            SELECT g.member_id, array_agg(g.measure ORDER BY g.measure), m.language
+            FROM care_gaps g JOIN members m USING (member_id)
+            WHERE g.measurement_year = %(year)s AND g.status = 'gap'
+              AND g.measure = ANY(%(measures)s)
+              AND date_part('year', age(make_date(%(year)s, 12, 31), m.birth_date))
+                  BETWEEN %(lo)s AND %(hi)s
+            GROUP BY g.member_id, m.language ORDER BY md5(g.member_id)
             """,
-            (year, n),
+            {"year": year, "measures": list(customer.measures), "lo": lo, "hi": hi},
         ).fetchall()
-    return [EvalCase(member_id, list(measures)) for member_id, measures in rows]
+    cases = [
+        EvalCase(member_id, list(measures), customer.language_for(lang))
+        for member_id, measures, lang in rows
+    ]
+    return [c for c in cases if language in (None, c.language)][:n]
 
 
 def _percentile(values: list[float], q: float) -> float:
@@ -89,17 +105,23 @@ def summarize(outcomes: list[ScriptOutcome], errors: int = 0) -> dict[str, float
         metrics[f"first_attempt_fail_{rule}"] = count
     for rule, count in final_rules.items():
         metrics[f"final_fail_{rule}"] = count
+    languages = Counter(o.language for o in outcomes)
+    if len(languages) > 1:
+        for lang, count in languages.items():
+            mine = [o for o in outcomes if o.language == lang]
+            metrics[f"scripts_{lang}"] = count
+            metrics[f"final_pass_rate_{lang}"] = sum(o.status == COMPLIANT for o in mine) / count
     return metrics
 
 
 def results_csv(outcomes: Iterable[ScriptOutcome]) -> str:
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["member_id", "measures", "status", "attempts", "first_attempt_rules",
-                     "final_rules", "words", "script"])  # fmt: skip
+    writer.writerow(["member_id", "language", "measures", "status", "attempts",
+                     "first_attempt_rules", "final_rules", "words", "script"])  # fmt: skip
     for o in outcomes:
         writer.writerow([
-            o.member_id, " ".join(o.measures), o.status, len(o.attempts),
+            o.member_id, o.language, " ".join(o.measures), o.status, len(o.attempts),
             " ".join(o.attempts[0].compliance.rules), " ".join(o.final.rules),
             len(o.script.split()), o.script,
         ])  # fmt: skip
@@ -107,7 +129,7 @@ def results_csv(outcomes: Iterable[ScriptOutcome]) -> str:
 
 
 def run(
-    generator: ScriptGenerator,
+    generators: Mapping[str, ScriptGenerator],
     store: MemberSource,
     cases: list[EvalCase],
     log: Callable[[str], None] = print,
@@ -116,6 +138,7 @@ def run(
     errors = 0
     for i, case in enumerate(cases, 1):
         try:
+            generator = generators[case.language]
             outcomes.append(generator.generate(store.member(case.member_id), case.open_measures))
         except ProviderError as exc:
             errors += 1
@@ -140,6 +163,7 @@ def _git_commit() -> str:
 def log_to_mlflow(
     tracking_uri: str,
     generator: ScriptGenerator,
+    customer: str,
     outcomes: list[ScriptOutcome],
     metrics: dict[str, float],
     params: dict[str, Any],
@@ -156,7 +180,12 @@ def log_to_mlflow(
                 **params,
                 "provider": generator.client.provider.name,
                 "model": generator.client.model,
-                "prompt_version": versions.get("outreach-script", "?"),
+                "prompt_version": versions.get(generator.profile.script_prompt, "?"),
+                "prompt_versions": json.dumps(
+                    {k: v for o in outcomes for k, v in o.prompt_versions.items()},
+                    sort_keys=True,
+                ),
+                "customer": customer,
                 "plan": generator.profile.plan_name,
                 "max_words": generator.profile.max_words,
                 "max_output_tokens": generator.max_output_tokens,
@@ -171,31 +200,40 @@ def log_to_mlflow(
 
 def main(argv: list[str] | None = None) -> None:
     from caregap.config import get_settings
+    from caregap.customers import load_all
     from caregap.llm.factory import build_client
-    from caregap.outreach.profile import DEFAULT_PROFILE
     from caregap.prompts import MlflowPromptStore
 
     parser = argparse.ArgumentParser(prog="python -m caregap.evals.rules")
     parser.add_argument("-n", type=int, default=100)
     parser.add_argument("--year", type=int, default=2025)
+    parser.add_argument("--customer", default="sunrise")
+    parser.add_argument("--language", default=None, help="only members scripted in this language")
     args = parser.parse_args(argv)
 
     settings = get_settings()
-    generator = ScriptGenerator(
-        build_client(settings),
-        MlflowPromptStore(settings.mlflow_tracking_uri),
-        DEFAULT_PROFILE,
-        max_output_tokens=4000 if settings.llm_provider == "claude" else 600,
-    )
+    customer = load_all(settings.customers_dir)[args.customer]
+    client = build_client(settings)
+    prompts = MlflowPromptStore(settings.mlflow_tracking_uri)
+    max_tokens = 4000 if settings.llm_provider == "claude" else 600
+    generators = {
+        lang: ScriptGenerator(client, prompts, customer.profile(lang), max_output_tokens=max_tokens)
+        for lang in customer.languages
+    }
     store = OutreachStore(settings.database_url)
-    cases = sample_cases(settings.database_url, args.year, args.n)
-    llm = generator.client
-    print(f"[eval-rules] {len(cases)} members, {llm.provider.name}:{llm.model}")
-    outcomes, errors = run(generator, store, cases)
+    cases = sample_cases(settings.database_url, customer, args.year, args.n, args.language)
+    langs = dict(Counter(c.language for c in cases))
+    print(
+        f"[eval-rules] {customer.id}: {len(cases)} members {langs}, "
+        f"{client.provider.name}:{client.model}"
+    )
+    outcomes, errors = run(generators, store, cases)
     metrics = summarize(outcomes, errors)
+    main_lang = args.language or customer.default_language
     run_id = log_to_mlflow(
-        settings.mlflow_tracking_uri, generator, outcomes, metrics,
-        {"n_requested": args.n, "measurement_year": args.year},
+        settings.mlflow_tracking_uri, generators[main_lang], customer.id, outcomes, metrics,
+        {"n_requested": args.n, "measurement_year": args.year,
+         "language_filter": args.language or "all", "languages": json.dumps(langs)},
     )  # fmt: skip
     for key in ("first_attempt_pass_rate", "final_pass_rate", "review_rate", "errors"):
         print(f"[eval-rules] {key}: {metrics.get(key, 0):.3f}")

@@ -123,8 +123,8 @@ N ?= 100
 eval-voice: ## Round-trip TTS->STT WER eval incl. name WER before/after overrides (MLflow)
 	$(UV) python -m caregap.evals.voice
 
-eval-rules: ## Rule-based compliance eval on N members (default 100), logged to MLflow
-	$(UV) python -m caregap.evals.rules -n $(N)
+eval-rules: ## Compliance eval on N members of CUSTOMER (default sunrise; LANGUAGE=es to filter)
+	$(UV) python -m caregap.evals.rules -n $(N) --customer $(CUSTOMER) $(if $(LANGUAGE),--language $(LANGUAGE))
 
 serve: ## Run the core service API on http://localhost:8000
 	$(UV) uvicorn --factory caregap.api.app:create_app --host 127.0.0.1 --port 8000
@@ -138,6 +138,7 @@ prompts-register: ## Register changed prompts in MLflow and point "production" a
 # --- orchestration (Phase 5) ---------------------------------------------------
 N8N_WORKFLOWS := cgCampaignTick01 cgNotifyOutbox01 cgTwilioEvents01
 CAMPAIGN_SIZE ?= 20
+CUSTOMER ?= sunrise
 
 .PHONY: seed-consent n8n-import n8n-export run-campaign
 seed-consent: ## Give members synthetic voice consent (keeps existing rows)
@@ -165,8 +166,9 @@ n8n-export: ## Export workflows from n8n back into n8n/workflows (after editing 
 		if k not in drop} | {"active": False}, indent=2) + "\n") \
 		for p in pathlib.Path("n8n/workflows").glob("*.json")]'
 
-run-campaign: n8n-import ## End-to-end campaign for CAMPAIGN_SIZE members through n8n + Twilio mock
-	$(UV) python -m caregap.campaign.run --size $(CAMPAIGN_SIZE) $(CAMPAIGN_ARGS)
+run-campaign: n8n-import ## Campaign for CAMPAIGN_SIZE members of CUSTOMER through n8n + Twilio mock
+	$(UV) python -m caregap.campaign.run --customer $(CUSTOMER) --size $(CAMPAIGN_SIZE) \
+		$(CAMPAIGN_ARGS)
 
 # --- later phases (placeholders) ---------------------------------------------
 define todo

@@ -9,9 +9,6 @@ from caregap.outreach.compliance import ComplianceResult, MemberContext, check
 from caregap.outreach.profile import OutreachProfile
 from caregap.prompts import PromptStore
 
-SCRIPT_PROMPT = "outreach-script"
-REVISE_PROMPT = "outreach-script-revise"
-
 COMPLIANT = "compliant"
 NEEDS_REVIEW = "needs_review"
 
@@ -29,6 +26,7 @@ class Attempt:
 class ScriptOutcome:
     member_id: str
     measures: tuple[str, ...]
+    language: str
     status: str  # COMPLIANT or NEEDS_REVIEW
     attempts: tuple[Attempt, ...]
     prompt_versions: dict[str, str]
@@ -79,24 +77,25 @@ class ScriptGenerator:
         if not measures:
             raise ValueError(f"member {member.member_id} has no open gaps to script")
         p = self.profile
-        prompt = self.prompts.get(SCRIPT_PROMPT)
+        prompt = self.prompts.get(p.script_prompt)
         # Only allowlisted member fields reach the model.
+        member_fields = {"given_name": member.given_name or "there"}
         messages = prompt.render(
             plan_name=p.plan_name,
             max_words=p.max_words,
             disclaimer=p.disclaimer,
             opt_out=p.opt_out,
-            given_name=member.given_name or "there",
             services="\n".join(f"- {p.measure_descriptions[m]}" for m in measures),
+            **{k: v for k, v in member_fields.items() if k in p.allowed_member_fields},
         )
-        versions = {SCRIPT_PROMPT: prompt.version}
+        versions = {p.script_prompt: prompt.version}
         purpose = f"outreach-script:{member.member_id}"
 
         first = self._attempt(messages, member, purpose)
         attempts = [first]
         if not first.compliance.passed:
-            revise = self.prompts.get(REVISE_PROMPT)
-            versions[REVISE_PROMPT] = revise.version
+            revise = self.prompts.get(p.revise_prompt)
+            versions[p.revise_prompt] = revise.version
             feedback = "\n".join(f"- {v.rule}: {v.detail}" for v in first.compliance.violations)
             messages = [
                 *messages,
@@ -108,6 +107,7 @@ class ScriptGenerator:
         return ScriptOutcome(
             member_id=member.member_id,
             measures=measures,
+            language=p.language,
             status=COMPLIANT if attempts[-1].compliance.passed else NEEDS_REVIEW,
             attempts=tuple(attempts),
             prompt_versions=versions,

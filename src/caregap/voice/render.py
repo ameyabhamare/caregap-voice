@@ -38,23 +38,24 @@ class AudioRenderer:
         tts: TTSProvider,
         audio_dir: Path,
         *,
-        voice: str,
         overrides_enabled: bool,
     ) -> None:
         self.conninfo = conninfo
         self.tts = tts
         self.audio_dir = audio_dir
-        self.voice = voice
         self.overrides_enabled = overrides_enabled
 
-    def render(self, script: dict[str, Any]) -> RenderedAudio:
+    def render(self, script: dict[str, Any], *, voice: str, lang: str) -> RenderedAudio:
+        """Synthesize ``script`` with ``voice`` (espeak language ``lang``). Pronunciation
+        overrides are English, so they only apply to English audio."""
         if script["status"] not in RENDERABLE:
             raise NotRenderableError(
                 f"script {script['id']} is {script['status']}; only compliant or approved "
                 "scripts are rendered"
             )
         started = time.monotonic()
-        audio = self.tts.synthesize(script["script"], voice=self.voice)
+        audio = self.tts.synthesize(script["script"], voice=voice, lang=lang)
+        overrides = self.overrides_enabled and lang.startswith("en")
         latency_ms = round((time.monotonic() - started) * 1000)
         self.audio_dir.mkdir(parents=True, exist_ok=True)
         path = self.audio_dir / f"script-{script['id']}-{int(time.time() * 1000)}.wav"
@@ -66,7 +67,7 @@ class AudioRenderer:
                                           path, duration_ms, latency_ms)
                 VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *
                 """,
-                (script["id"], self.tts.name, self.voice, self.overrides_enabled, str(path),
+                (script["id"], self.tts.name, voice, overrides, str(path),
                  round(audio.duration_s * 1000), latency_ms),
             ).fetchone()  # fmt: skip
         assert row is not None  # noqa: S101 - INSERT ... RETURNING always returns a row

@@ -80,15 +80,21 @@ def call_request(
 _XML = '<?xml version="1.0" encoding="UTF-8"?>'
 
 
-def play_and_gather(audio_url: str, action_url: str, *, closing: str) -> str:
+def _say(text: str, language: str) -> str:
+    return f"<Say language={quoteattr(language)}>{escape(text)}</Say>"
+
+
+def play_and_gather(
+    audio_url: str, action_url: str, *, closing: str, language: str = "en-US"
+) -> str:
     """Play the message while listening for one digit; say ``closing`` if none comes."""
     return (
         f"{_XML}<Response>"
         f'<Gather numDigits="1" timeout="5" method="POST" action={quoteattr(action_url)}>'
         f"<Play>{escape(audio_url)}</Play></Gather>"
-        f"<Say>{escape(closing)}</Say><Hangup/></Response>"
+        f"{_say(closing, language)}<Hangup/></Response>"
     )
 
 
-def say_and_hang_up(text: str) -> str:
-    return f"{_XML}<Response><Say>{escape(text)}</Say><Hangup/></Response>"
+def say_and_hang_up(text: str, *, language: str = "en-US") -> str:
+    return f"{_XML}<Response>{_say(text, language)}<Hangup/></Response>"

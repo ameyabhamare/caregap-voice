@@ -9,12 +9,11 @@ from caregap.cost import CostLedger, InMemoryLedgerStore
 from caregap.llm.base import LLMClient
 from caregap.outreach.compliance import MemberContext
 from caregap.outreach.generate import COMPLIANT, NEEDS_REVIEW, ScriptGenerator, clean
-from caregap.outreach.profile import DEFAULT_PROFILE
 from caregap.prompts import FilePromptStore
+from tests.helpers import P
 
 from ..llm.fakes import FakeProvider
 
-P = DEFAULT_PROFILE
 MEMBER = MemberContext("m-1", "Ava", "Welch179", date(1955, 4, 2), "555-0142", 70)
 GOOD = (
     f"Hello Ava, please book a yearly wellness visit with your doctor. {P.disclaimer} {P.opt_out}"

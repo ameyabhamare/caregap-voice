@@ -5,9 +5,8 @@ from datetime import date
 import pytest
 
 from caregap.outreach.compliance import MemberContext, check, normalize
-from caregap.outreach.profile import DEFAULT_PROFILE
+from tests.helpers import P
 
-P = DEFAULT_PROFILE
 MEMBER = MemberContext(
     member_id="9f1c2d3e-0000-4000-8000-123456789abc",
     given_name="Ava",

@@ -15,12 +15,11 @@ from caregap.api.app import create_app
 from caregap.config import Settings
 from caregap.cost import CostLedger, InMemoryLedgerStore
 from caregap.llm.base import LLMClient, ProviderError
-from caregap.outreach.generate import ScriptGenerator
-from caregap.outreach.profile import DEFAULT_PROFILE as P
 from caregap.outreach.store import OutreachStore
 from caregap.prompts import FilePromptStore
 from caregap.voice.base import Audio
 from caregap.voice.render import AudioRenderer
+from tests.helpers import SUNRISE, P
 from tests.unit.llm.fakes import FakeProvider
 
 pytestmark = pytest.mark.integration
@@ -53,7 +52,9 @@ def _client(db: str, replies: Any) -> tuple[TestClient, FakeProvider]:
     app = create_app(
         Settings(_env_file=None, database_url=db),
         store=OutreachStore(db),
-        generator=ScriptGenerator(llm, FilePromptStore(), P),
+        llm=llm,
+        prompts=FilePromptStore(),
+        customers={"sunrise": SUNRISE},
     )
     return TestClient(app), provider
 
@@ -78,6 +79,7 @@ def test_compliant_script_is_stored(db: str) -> None:
     assert r.status_code == 201
     body = r.json()
     assert (body["status"], body["measures"], body["attempts"]) == ("compliant", ["awv"], 1)
+    assert (body["customer"], body["language"]) == ("sunrise", "en")
     assert body["violations"] == []
     assert client.get(f"/scripts/{body['id']}").json()["script"] == GOOD
     sent = " ".join(m.content for m in provider.calls[0])
@@ -116,7 +118,10 @@ def test_reject_and_not_found(db: str) -> None:
 
 def test_member_without_open_gaps_or_unknown(db: str) -> None:
     client, provider = _client(db, [])
-    assert client.post("/scripts", json={"member_id": "m-none"}).status_code == 409
+    r = client.post("/scripts", json={"member_id": "m-none"})  # 35: no customer takes them
+    assert (r.status_code, "no configured customer" in r.json()["detail"]) == (409, True)
+    r = client.post("/scripts", json={"member_id": "m-gap", "customer": "nobody"})
+    assert r.status_code == 404
     assert client.post("/scripts", json={"member_id": "nobody"}).status_code == 404
     assert provider.calls == []
 
@@ -135,7 +140,9 @@ def test_provider_and_budget_errors_map_to_clear_statuses(db: str) -> None:
     app = create_app(
         Settings(_env_file=None, database_url=db),
         store=OutreachStore(db),
-        generator=ScriptGenerator(llm, FilePromptStore(), P),
+        llm=llm,
+        prompts=FilePromptStore(),
+        customers={"sunrise": SUNRISE},
     )
     assert TestClient(app).post("/scripts", json={"member_id": "m-gap"}).status_code == 402
 
@@ -149,11 +156,13 @@ class FakeTTS:
 
 def _audio_client(db: str, tmp_path: Path, replies: list[str]) -> TestClient:
     llm = LLMClient(FakeProvider(replies), CostLedger(InMemoryLedgerStore(), Decimal("5")))
-    renderer = AudioRenderer(db, FakeTTS(), tmp_path, voice="af_heart", overrides_enabled=True)
+    renderer = AudioRenderer(db, FakeTTS(), tmp_path, overrides_enabled=True)
     app = create_app(
         Settings(_env_file=None, database_url=db),
         store=OutreachStore(db),
-        generator=ScriptGenerator(llm, FilePromptStore(), P),
+        llm=llm,
+        prompts=FilePromptStore(),
+        customers={"sunrise": SUNRISE},
         renderer=renderer,
     )
     return TestClient(app)

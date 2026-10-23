@@ -21,6 +21,9 @@ RUN --mount=type=secret,id=extra_ca \
 
 COPY src ./src
 COPY voice ./voice
+# Customer configs are validated against the prompt files at startup.
+COPY customers ./customers
+COPY prompts ./prompts
 # Installing the project itself fetches its build backend (hatchling).
 RUN --mount=type=secret,id=extra_ca \
     if [ -s /run/secrets/extra_ca ]; then \

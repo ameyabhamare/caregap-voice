@@ -44,7 +44,7 @@ class OutreachStore:
     def member(self, member_id: str, *, today: date | None = None) -> MemberContext:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT member_id, given_name, family_name, birth_date, phone"
+                "SELECT member_id, given_name, family_name, birth_date, phone, language"
                 " FROM members WHERE member_id = %s",
                 (member_id,),
             ).fetchone()
@@ -57,6 +57,7 @@ class OutreachStore:
             birth_date=row["birth_date"],
             phone=row["phone"],
             age=age_on(row["birth_date"], today or datetime.now(UTC).date()),
+            language=row["language"],
         )
 
     def gaps(self, member_id: str, year: int) -> list[Gap]:
@@ -68,7 +69,9 @@ class OutreachStore:
             ).fetchall()
         return [Gap(**r) for r in rows]
 
-    def save_script(self, outcome: ScriptOutcome, year: int, *, hold: bool = False) -> int:
+    def save_script(
+        self, outcome: ScriptOutcome, year: int, *, customer: str, hold: bool = False
+    ) -> int:
         """Store a generated script. ``hold`` parks a compliant script as
         ``pending_approval`` so a human approves it before it is used."""
         status = "pending_approval" if hold and outcome.status == "compliant" else outcome.status
@@ -89,8 +92,8 @@ class OutreachStore:
                 """
                 INSERT INTO outreach_scripts (member_id, measurement_year, measures, status,
                     script, violations, attempts, prompt_versions, provider, model,
-                    input_tokens, output_tokens, latency_ms)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    input_tokens, output_tokens, latency_ms, customer, language)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (
@@ -100,6 +103,7 @@ class OutreachStore:
                     sum(a.input_tokens for a in outcome.attempts),
                     sum(a.output_tokens for a in outcome.attempts),
                     round(sum(a.latency_s for a in outcome.attempts) * 1000),
+                    customer, outcome.language,
                 ),
             ).fetchone()  # fmt: skip
         assert row is not None  # noqa: S101 - INSERT ... RETURNING always returns a row

@@ -7,10 +7,11 @@ import pytest
 
 from caregap.campaign.clock import FixedClock, ShiftedClock, build_clock
 from caregap.campaign.window import CallWindow
-from caregap.outreach.profile import DEFAULT_PROFILE, CampaignPolicy
+from caregap.outreach.profile import CampaignPolicy
+from tests.helpers import P
 
 NY = ZoneInfo("America/New_York")
-W = CallWindow(DEFAULT_PROFILE.campaign)  # Mon-Sat 09:00-20:00 New York
+W = CallWindow(P.campaign)  # Mon-Sat 09:00-20:00 New York
 
 
 def ny(y: int, mo: int, d: int, h: int = 0, mi: int = 0, s: int = 0) -> datetime:
@@ -54,7 +55,7 @@ def test_window_follows_local_time_across_dst() -> None:
 
 
 def test_policy_validation() -> None:
-    base = DEFAULT_PROFILE.campaign.model_dump()
+    base = P.campaign.model_dump()
     with pytest.raises(ValueError, match="before"):
         CampaignPolicy(**{**base, "call_window_start": time(20), "call_window_end": time(9)})
     with pytest.raises(ValueError, match="weekdays"):

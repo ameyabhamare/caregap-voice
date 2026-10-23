@@ -45,6 +45,7 @@ COVER = [
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--customer", default="sunrise", help="a config in customers/")
     ap.add_argument("--size", type=int, default=20)
     ap.add_argument("--year", type=int, default=2025)
     ap.add_argument("--core", default="http://localhost:8000")
@@ -69,6 +70,7 @@ def main(argv: list[str] | None = None) -> int:
         http.post(
             f"{args.core}/campaigns",
             json={
+                "customer": args.customer,
                 "name": f"demo {datetime.now(UTC):%Y-%m-%d %H:%M}",
                 "size": args.size,
                 "measurement_year": args.year,
@@ -77,7 +79,10 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
     cid = summary["id"]
-    print(f"[run-campaign] campaign {cid}: {summary['members']} members, {summary['states']}")
+    print(
+        f"[run-campaign] campaign {cid} ({summary['customer']}): {summary['members']} members, "
+        f"{summary['states']}"
+    )
 
     if args.cover_outcomes:
         _script_outcomes(http, args.mock, settings.database_url, cid)

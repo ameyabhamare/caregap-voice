@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     mlflow_tracking_uri: str = "http://localhost:5000"
     fhir_base_url: str = "http://localhost:8080/fhir"
 
+    #: Customer configs (one YAML per health plan); validated at startup.
+    customers_dir: Path = Path("customers")
+
     # Generated data (Synthea output, NDJSON export, caches). Gitignored.
     data_dir: Path = Path("data")
 

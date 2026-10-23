@@ -13,8 +13,8 @@ from caregap.evals.rules import EvalCase, results_csv, run, summarize
 from caregap.llm.base import LLMClient, Message, ProviderError
 from caregap.outreach.compliance import MemberContext
 from caregap.outreach.generate import ScriptGenerator
-from caregap.outreach.profile import DEFAULT_PROFILE as P
 from caregap.prompts import FilePromptStore
+from tests.helpers import P
 
 from ..llm.fakes import FakeProvider
 
@@ -51,7 +51,7 @@ def test_summary_rates_and_rule_counts() -> None:
         def member(self, member_id: str) -> MemberContext:
             return MemberContext(member_id, member_id, None, date(1955, 4, 2), None, 70)
 
-    outcomes, errors = run(gen, Store(), cases, log=lambda _: None)
+    outcomes, errors = run({"en": gen}, Store(), cases, log=lambda _: None)
     m = summarize(outcomes, errors)
     assert m["scripts"] == 3
     assert m["first_attempt_pass_rate"] == pytest.approx(1 / 3)
@@ -67,13 +67,15 @@ def test_provider_errors_are_counted_not_fatal() -> None:
     def boom(_: list[Message]) -> str:
         raise ProviderError("down")
 
-    outcomes, errors = run(_gen(boom), FakeStore(), [EvalCase("m1", ["awv"])], log=lambda _: None)
+    case = EvalCase("m1", ["awv"])
+    outcomes, errors = run({"en": _gen(boom)}, FakeStore(), [case], log=lambda _: None)
     assert (outcomes, errors) == ([], 1)
     assert summarize(outcomes, errors) == {"scripts": 0, "errors": 1}
 
 
 def test_results_csv_has_one_row_per_script() -> None:
-    outcomes, _ = run(_gen([GOOD]), FakeStore(), [EvalCase("m1", ["awv"])], log=lambda _: None)
+    case = EvalCase("m1", ["awv"])
+    outcomes, _ = run({"en": _gen([GOOD])}, FakeStore(), [case], log=lambda _: None)
     rows = list(csv.DictReader(io.StringIO(results_csv(outcomes))))
     assert rows[0]["status"] == "compliant"
     assert rows[0]["script"] == GOOD

@@ -36,6 +36,8 @@ class MemberContext:
     birth_date: date
     phone: str | None
     age: int
+    #: Preferred language (ISO 639-1), from the member registry.
+    language: str = "en"
 
 
 @dataclass(frozen=True)

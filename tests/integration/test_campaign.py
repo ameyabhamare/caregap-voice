@@ -6,6 +6,7 @@ Fake model and TTS, a fixed clock, and Twilio callbacks signed the way Twilio si
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -21,13 +22,13 @@ from caregap.api.app import create_app
 from caregap.campaign.clock import FixedClock
 from caregap.config import Settings
 from caregap.cost import CostLedger, InMemoryLedgerStore
+from caregap.customers import CustomerConfig
 from caregap.llm.base import LLMClient, Message, ProviderError
-from caregap.outreach.generate import ScriptGenerator
-from caregap.outreach.profile import DEFAULT_PROFILE
 from caregap.outreach.store import OutreachStore
 from caregap.prompts import FilePromptStore
 from caregap.telephony import twilio
 from caregap.voice.render import AudioRenderer
+from tests.helpers import SUNRISE
 from tests.integration.test_api import FakeTTS
 from tests.unit.llm.fakes import FakeProvider
 
@@ -35,13 +36,15 @@ pytestmark = pytest.mark.integration
 
 NY = ZoneInfo("America/New_York")
 TUESDAY_10AM = datetime(2026, 1, 13, 10, 0, tzinfo=NY)
-PROFILE = DEFAULT_PROFILE.model_copy(
+CUSTOMER = SUNRISE.model_copy(
     update={
-        "campaign": DEFAULT_PROFILE.campaign.model_copy(
+        "campaign": SUNRISE.campaign.model_copy(
             update={"approval_first_n": 1, "max_call_attempts": 2, "retry_delay_minutes": 60}
         )
     }
 )
+PROFILE = CUSTOMER.profile("en")
+EN = CUSTOMER.languages["en"]
 TOKEN = "test-token"
 GOOD = (
     "Hi {name}, a yearly wellness visit with your doctor is due. "
@@ -93,12 +96,18 @@ def reply(messages: list[Message]) -> str:
     text = " ".join(m.content for m in messages)
     if "Zed" in text:
         return "Hi Zed, about your diabetes."
-    name = next(n for _, n, *_ in MEMBERS if n in text)
-    return GOOD.format(name=name)
+    m = re.search(r"Member first name: (\w+)", text)
+    return GOOD.format(name=m.group(1) if m else "there")
 
 
 class Harness:
-    def __init__(self, db: str, tmp_path: Path, provider: FakeProvider) -> None:
+    def __init__(
+        self,
+        db: str,
+        tmp_path: Path,
+        provider: FakeProvider,
+        customers: dict[str, CustomerConfig] | None = None,
+    ) -> None:
         self.db = db
         self.clock = FixedClock(TUESDAY_10AM)
         self.settings = Settings(
@@ -110,15 +119,16 @@ class Harness:
             twilio_callback_url="http://n8n:5678/webhook/twilio-events",
         )
         llm = LLMClient(provider, CostLedger(InMemoryLedgerStore(), Decimal("5")))
-        renderer = AudioRenderer(db, FakeTTS(), tmp_path, voice="v", overrides_enabled=True)
+        renderer = AudioRenderer(db, FakeTTS(), tmp_path, overrides_enabled=True)
         self.client = TestClient(
             create_app(
                 self.settings,
                 store=OutreachStore(db),
-                generator=ScriptGenerator(llm, FilePromptStore(), PROFILE),
+                llm=llm,
+                prompts=FilePromptStore(),
                 renderer=renderer,
                 clock=self.clock,
-                profile=PROFILE,
+                customers=customers or {"sunrise": CUSTOMER},
             ),
             raise_server_exceptions=False,
         )
@@ -143,7 +153,7 @@ class Harness:
         return row[0], row[1]
 
     def campaign(self, size: int = 20) -> int:
-        return int(self.post("/campaigns", {"name": "t", "size": size}, status=201)["id"])
+        return int(self.post("/campaigns", {"customer": "sunrise", "size": size}, status=201)["id"])
 
     def ready(self, cid: int, *mids: str) -> None:
         """Prepare members and approve whatever waits for review."""
@@ -178,7 +188,7 @@ def h(db: str, tmp_path: Path) -> Harness:
 
 
 def test_selection_records_why_members_cannot_be_called(h: Harness) -> None:
-    summary = h.post("/campaigns", {"name": "t", "size": 20}, status=201)
+    summary = h.post("/campaigns", {"customer": "sunrise", "size": 20}, status=201)
     assert summary["members"] == 8  # m-nogap has no open gap
     assert summary["states"] == {"selected": 4, "skipped": 4}
     assert summary["skipped"] == {
@@ -190,7 +200,7 @@ def test_selection_records_why_members_cannot_be_called(h: Harness) -> None:
     assert not summary["done"]
     # A second campaign for the same year does not re-select active members, but may retry
     # members the first one skipped.
-    second = h.post("/campaigns", {"name": "t2", "size": 20}, status=201)
+    second = h.post("/campaigns", {"customer": "sunrise", "size": 20}, status=201)
     assert second["states"] == {"skipped": 4}
 
 
@@ -261,7 +271,7 @@ def test_dtmf_9_opts_out_and_0_escalates(h: Harness) -> None:
     h.ready(cid, "m-a", "m-b")
     a = h.call(cid, "m-a", "CA9")
     twiml = h.event(a, {"CallSid": "CA9", "Digits": "9"}, gather=True)["twiml"]
-    assert PROFILE.campaign.opt_out_confirmation in twiml
+    assert EN.opt_out_confirmation in twiml
     h.event(a, {"CallSid": "CA9", "CallStatus": "completed"})
     assert h.state(cid, "m-a") == ("opted_out", "dtmf_9")
     with psycopg.connect(h.db) as conn:
@@ -271,7 +281,7 @@ def test_dtmf_9_opts_out_and_0_escalates(h: Harness) -> None:
 
     b = h.call(cid, "m-b", "CA0")
     twiml = h.event(b, {"CallSid": "CA0", "Digits": "0"}, gather=True)["twiml"]
-    assert PROFILE.campaign.callback_confirmation in twiml
+    assert EN.callback_confirmation in twiml
     h.event(b, {"CallSid": "CA0", "CallStatus": "completed"})
     assert h.state(cid, "m-b") == ("escalated", "dtmf_0")
     [esc] = h.client.get("/escalations").json()
@@ -423,3 +433,79 @@ def test_generation_is_capped_across_campaigns(h: Harness) -> None:
     # A worker that died mid-generation frees its slot after 15 minutes.
     h.clock.advance(minutes=16)
     assert h.work() == [("prepare", "m-a"), ("prepare", "m-b")]
+
+
+# A second customer for tests: under-65 members, eye exams only, weekday calls, no
+# delivery-failure alerts, 7 to opt out and 1 for a call back.
+YOUNG = CUSTOMER.model_copy(
+    update={
+        "id": "young",
+        "members": CUSTOMER.members.model_copy(update={"min_age": None, "max_age": 64}),
+        "measures": ("eye_exam",),
+        "campaign": CUSTOMER.campaign.model_copy(update={"call_days": frozenset(range(1, 6))}),
+        "escalation": CUSTOMER.escalation.model_copy(
+            update={"opt_out_digit": "7", "callback_digit": "1",
+                    "alert_on_delivery_failure": False}
+        ),
+    }
+)  # fmt: skip
+
+
+@pytest.fixture
+def two(db: str, tmp_path: Path) -> Harness:
+    with psycopg.connect(db) as conn:
+        for mid, name, measure in [("y-eye", "Yan", "eye_exam"), ("y-statin", "Yul", "statin")]:
+            conn.execute(
+                "INSERT INTO members (member_id, given_name, family_name, birth_date, phone)"
+                " VALUES (%s, %s, 'Synth', '1990-06-01', '555-020-0001')",
+                (mid, name),
+            )
+            conn.execute(
+                "INSERT INTO care_gaps (member_id, measure, measurement_year, status, reason)"
+                " VALUES (%s, %s, 2025, 'gap', 'test')",
+                (mid, measure),
+            )
+            conn.execute(
+                "INSERT INTO consent (member_id, channel, status, source)"
+                " VALUES (%s, 'voice', 'granted', 'test')",
+                (mid,),
+            )
+    return Harness(db, tmp_path, FakeProvider(reply), {"sunrise": CUSTOMER, "young": YOUNG})
+
+
+def test_customers_select_only_their_members_and_measures(two: Harness) -> None:
+    young = two.post("/campaigns", {"customer": "young", "size": 20}, status=201)
+    # y-statin is under 65 but has no eye-exam gap; Sunrise's 65+ members are not young's.
+    assert (young["customer"], young["members"]) == ("young", 1)
+    sunrise = two.post("/campaigns", {"customer": "sunrise", "size": 20}, status=201)
+    assert sunrise["members"] == 8
+    assert two.client.post("/campaigns", json={"customer": "nobody"}).status_code == 404
+
+
+def test_each_customer_has_its_own_window_and_digits(two: Harness) -> None:
+    cid = int(two.post("/campaigns", {"customer": "young", "size": 5}, status=201)["id"])
+    two.ready(cid, "y-eye")
+    with psycopg.connect(two.db) as conn:
+        script = conn.execute(
+            "SELECT customer, language, measures FROM outreach_scripts WHERE member_id = 'y-eye'"
+        ).fetchone()
+    assert script == ("young", "en", ["eye_exam"])
+    two.clock.at = datetime(2026, 1, 17, 12, 0, tzinfo=NY)  # Saturday: young does not call
+    assert two.post(f"/campaigns/{cid}/members/y-eye/send")["reason"] == "outside the call window"
+    two.clock.at = TUESDAY_10AM
+    a = two.call(cid, "y-eye", "CA-y")
+    two.event(a, {"CallSid": "CA-y", "Digits": "9"}, gather=True)  # not young's opt-out key
+    two.event(a, {"CallSid": "CA-y", "CallStatus": "completed"})
+    assert two.state(cid, "y-eye") == ("completed", None)
+
+
+def test_customers_without_delivery_alerts(two: Harness) -> None:
+    cid = int(two.post("/campaigns", {"customer": "young", "size": 5}, status=201)["id"])
+    two.ready(cid, "y-eye")
+    for n in (1, 2):
+        a = two.call(cid, "y-eye", f"CA-{n}")
+        two.event(a, {"CallSid": f"CA-{n}", "CallStatus": "busy"})
+        two.clock.advance(minutes=61)
+        two.work()
+    assert two.state(cid, "y-eye") == ("failed", "2 calls, last: busy")
+    assert two.client.get("/escalations").json() == []

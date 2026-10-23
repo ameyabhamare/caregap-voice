@@ -37,6 +37,7 @@ from psycopg.types.json import Jsonb
 
 from caregap.campaign.clock import Clock
 from caregap.campaign.window import CallWindow
+from caregap.customers import LANGUAGES, CustomerConfig, LanguageConfig
 from caregap.outreach.generate import COMPLIANT, ScriptGenerator
 from caregap.outreach.profile import OutreachProfile
 from caregap.outreach.store import NotFoundError, OutreachStore
@@ -54,6 +55,8 @@ STALE_CALLING = timedelta(minutes=30)
 MAX_PREPARING = 2
 #: Advisory lock key serializing prepare claims (so the cap holds under concurrency).
 _PREPARE_LOCK = 0x63617265  # "care"
+
+_FOR_UPDATE = " FOR UPDATE OF a"
 
 ACTIVE_STATES = ("selected", "preparing", "ready", "calling", "retry_wait")
 CALL_DONE = ("completed", "no-answer", "busy", "failed", "canceled")
@@ -83,9 +86,9 @@ class CampaignService:
         conninfo: str,
         *,
         outreach: OutreachStore,
-        generator: ScriptGenerator,
+        generators: Callable[[OutreachProfile], ScriptGenerator],
         renderer: Callable[[], AudioRenderer],
-        profile: OutreachProfile,
+        customers: Mapping[str, CustomerConfig],
         telephony: TelephonyConfig,
         clock: Clock,
         max_preparing: int = MAX_PREPARING,
@@ -93,12 +96,18 @@ class CampaignService:
         self.conninfo = conninfo
         self.max_preparing = max_preparing
         self.outreach = outreach
-        self.generator = generator
+        self.generators = generators
         self.renderer = renderer
-        self.policy = profile.campaign
-        self.window = CallWindow(profile.campaign)
+        self.customers = dict(customers)
+        self.windows = {cid: CallWindow(c.campaign) for cid, c in self.customers.items()}
         self.tel = telephony
         self.clock = clock
+
+    def customer(self, customer_id: str) -> CustomerConfig:
+        try:
+            return self.customers[customer_id]
+        except KeyError:
+            raise NotFoundError(f"customer {customer_id!r} is not configured") from None
 
     @contextmanager
     def _tx(self) -> Iterator[psycopg.Connection[dict[str, Any]]]:
@@ -110,22 +119,26 @@ class CampaignService:
     def create(
         self,
         *,
+        customer: str,
         name: str,
         size: int,
         measurement_year: int,
         retry_delay_minutes: int | None = None,
     ) -> dict[str, Any]:
-        """Select up to ``size`` members with an open gap who are not already in a
-        campaign for the year (unless it skipped or failed them), in a stable pseudo-random
-        order, and record why any of them cannot be called."""
-        p = self.policy
+        """Select up to ``size`` of the customer's members with an open gap in one of the
+        customer's measures who are not already in a campaign for the year (unless it
+        skipped or failed them), in a stable pseudo-random order, and record why any of
+        them cannot be called."""
+        cfg = self.customer(customer)
+        p = cfg.campaign
+        lo, hi = cfg.members.bounds()
         now = self.clock.now()
         with self._tx() as conn:
             campaign = conn.execute(
-                "INSERT INTO campaigns (name, measurement_year, approval_first_n,"
+                "INSERT INTO campaigns (customer, name, measurement_year, approval_first_n,"
                 " max_call_attempts, retry_delay_minutes, created_at)"
-                " VALUES (%s, %s, %s, %s, %s, %s) RETURNING *",
-                (name, measurement_year, p.approval_first_n, p.max_call_attempts,
+                " VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *",
+                (cfg.id, name, measurement_year, p.approval_first_n, p.max_call_attempts,
                  p.retry_delay_minutes if retry_delay_minutes is None else retry_delay_minutes,
                  now),
             ).fetchone()  # fmt: skip
@@ -136,7 +149,11 @@ class CampaignService:
                 FROM members m
                 LEFT JOIN consent c ON c.member_id = m.member_id AND c.channel = 'voice'
                 WHERE EXISTS (SELECT 1 FROM care_gaps g WHERE g.member_id = m.member_id
-                              AND g.measurement_year = %(year)s AND g.status = 'gap')
+                              AND g.measurement_year = %(year)s AND g.status = 'gap'
+                              AND g.measure = ANY(%(measures)s))
+                  -- The customer's members: age on December 31 of the measurement year.
+                  AND date_part('year', age(make_date(%(year)s, 12, 31), m.birth_date))
+                      BETWEEN %(lo)s AND %(hi)s
                   AND NOT EXISTS (
                       SELECT 1 FROM campaign_members cm JOIN campaigns k ON k.id = cm.campaign_id
                       WHERE cm.member_id = m.member_id AND k.measurement_year = %(year)s
@@ -144,7 +161,13 @@ class CampaignService:
                 ORDER BY md5(m.member_id), m.member_id
                 LIMIT %(size)s
                 """,
-                {"year": measurement_year, "size": size},
+                {
+                    "year": measurement_year,
+                    "size": size,
+                    "measures": list(cfg.measures),
+                    "lo": lo,
+                    "hi": hi,
+                },
             ).fetchall()
             for c in candidates:
                 reason = skip_reason(c["deceased_date"], c["consent"], c["phone"])
@@ -189,6 +212,7 @@ class CampaignService:
             ).fetchone()
         return {
             "id": campaign["id"],
+            "customer": campaign["customer"],
             "name": campaign["name"],
             "measurement_year": campaign["measurement_year"],
             "approval_first_n": campaign["approval_first_n"],
@@ -221,12 +245,16 @@ class CampaignService:
                 " ORDER BY campaign_id, member_id LIMIT %s",
                 (now - STALE_PREPARING, max(0, min(prepare_limit, free))),
             ).fetchall()
-            if self.window.is_open(now):
+            # Only customers whose call window is open now.
+            open_now = [cid for cid, w in self.windows.items() if w.is_open(now)]
+            if open_now:
                 items += conn.execute(
-                    "SELECT campaign_id, member_id, 'send' AS action FROM campaign_members"
-                    " WHERE state IN ('ready', 'retry_wait') AND next_call_at <= %s"
-                    " ORDER BY next_call_at, campaign_id, member_id LIMIT %s",
-                    (now, send_limit),
+                    "SELECT cm.campaign_id, cm.member_id, 'send' AS action"
+                    " FROM campaign_members cm JOIN campaigns k ON k.id = cm.campaign_id"
+                    " WHERE cm.state IN ('ready', 'retry_wait') AND cm.next_call_at <= %s"
+                    " AND k.customer = ANY(%s)"
+                    " ORDER BY cm.next_call_at, cm.campaign_id, cm.member_id LIMIT %s",
+                    (now, open_now, send_limit),
                 ).fetchall()
         return items
 
@@ -299,13 +327,18 @@ class CampaignService:
             return self._no_action(campaign_id, member_id, "not waiting to be prepared")
         year = campaign["measurement_year"]
         try:
+            cfg = self.customer(campaign["customer"])
             open_measures = [
-                g.measure for g in self.outreach.gaps(member_id, year) if g.status == "gap"
+                g.measure
+                for g in self.outreach.gaps(member_id, year)
+                if g.status == "gap" and g.measure in cfg.measures
             ]
             if not open_measures:
                 self._set_state(campaign_id, member_id, "skipped", reason="no_open_gap")
                 return {"action": "skipped", "reason": "no_open_gap"}
-            outcome = self.generator.generate(self.outreach.member(member_id), open_measures)
+            member = self.outreach.member(member_id)
+            profile = cfg.profile(cfg.language_for(member.language))
+            outcome = self.generators(profile).generate(member, open_measures)
         except Exception:
             # Give the work back; the next tick retries it.
             self._set_state(campaign_id, member_id, "selected", only_from="preparing")
@@ -318,7 +351,7 @@ class CampaignService:
                 (campaign_id,),
             ).fetchone()
             hold = gated is not None and gated["n"] < campaign["approval_first_n"]
-            script_id = self.outreach.save_script(outcome, year, hold=hold)
+            script_id = self.outreach.save_script(outcome, year, customer=cfg.id, hold=hold)
             needs_human = hold or outcome.status != COMPLIANT
             conn.execute(
                 "UPDATE campaign_members SET state = %s, script_id = %s, human_gate = %s,"
@@ -337,13 +370,12 @@ class CampaignService:
         """Claim a due call: check window and consent, render audio if needed, record the
         attempt and return the Twilio request for the orchestrator to post."""
         now = self.clock.now()
-        if not self.window.is_open(now):
-            return self._no_action(campaign_id, member_id, "outside the call window")
         with self._tx() as conn:
             cm = conn.execute(
                 """
-                SELECT cm.*, m.phone, c.status AS consent
+                SELECT cm.*, m.phone, c.status AS consent, k.customer
                 FROM campaign_members cm
+                JOIN campaigns k ON k.id = cm.campaign_id
                 JOIN members m ON m.member_id = cm.member_id
                 LEFT JOIN consent c ON c.member_id = cm.member_id AND c.channel = 'voice'
                 WHERE cm.campaign_id = %s AND cm.member_id = %s
@@ -353,6 +385,11 @@ class CampaignService:
             ).fetchone()
             if cm is None:
                 raise NotFoundError(f"member {member_id} is not in campaign {campaign_id}")
+            cfg = self.customer(cm["customer"])
+            if not self.windows[cfg.id].is_open(now):
+                return self._no_action(
+                    campaign_id, member_id, "outside the call window", cm["state"]
+                )
             if cm["state"] not in ("ready", "retry_wait") or cm["next_call_at"] > now:
                 return self._no_action(campaign_id, member_id, "no call due", cm["state"])
             reason = skip_reason(None, cm["consent"], cm["phone"])
@@ -363,7 +400,12 @@ class CampaignService:
             assert to is not None  # noqa: S101 - skip_reason checked it
             audio = latest_audio(self.conninfo, cm["script_id"])
             if audio is None:
-                audio = self.renderer().render(self.outreach.script(cm["script_id"]))
+                script = self.outreach.script(cm["script_id"])
+                audio = self.renderer().render(
+                    script,
+                    voice=cfg.languages[script["language"]].voice,
+                    lang=LANGUAGES[script["language"]].tts_lang,
+                )
             attempt = conn.execute(
                 "INSERT INTO call_attempts (campaign_id, member_id, attempt_no, script_id,"
                 " audio_id, status, created_at, updated_at)"
@@ -440,14 +482,14 @@ class CampaignService:
         """TwiML for an answered call: play the rendered message, listen for one digit."""
         self._check_signature(self.twiml_url(attempt_id), params, sig)
         with self._tx() as conn:
-            attempt = conn.execute(
-                "SELECT script_id FROM call_attempts WHERE id = %s", (attempt_id,)
-            ).fetchone()
-        if attempt is None:
-            raise NotFoundError(f"call attempt {attempt_id} not found")
+            attempt = self._attempt_context(conn, attempt_id)
+        lang = self._language(attempt)
         audio_url = f"{self.tel.public_base_url.rstrip('/')}/scripts/{attempt['script_id']}/audio"
         return twilio.play_and_gather(
-            audio_url, self.callback_url(attempt_id, "gather"), closing=self.policy.goodbye
+            audio_url,
+            self.callback_url(attempt_id, "gather"),
+            closing=lang.goodbye,
+            language=lang.say_language,
         )
 
     def telephony_event(
@@ -465,7 +507,7 @@ class CampaignService:
         self._check_signature(self.callback_url(attempt_id, event), body, sig)
         now = self.clock.now()
         with self._tx() as conn:
-            attempt = self._lock_attempt(conn, attempt_id)
+            attempt = self._attempt_context(conn, attempt_id, lock=True)
             sid = body.get("CallSid")
             if attempt["call_sid"] and sid != attempt["call_sid"]:
                 raise EventConflictError(f"CallSid {sid} does not match attempt {attempt_id}")
@@ -488,11 +530,13 @@ class CampaignService:
         now: datetime,
     ) -> str:  # fmt: skip
         cid, mid = attempt["campaign_id"], attempt["member_id"]
+        rules = self.customer(attempt["customer"]).escalation
+        lang = self._language(attempt)
         conn.execute(
             "UPDATE call_attempts SET digits = %s, updated_at = %s WHERE id = %s",
             (digits, now, attempt["id"]),
         )
-        if digits == "9":
+        if digits == rules.opt_out_digit:
             conn.execute(
                 """
                 INSERT INTO consent (member_id, channel, status, source, updated_at)
@@ -502,16 +546,16 @@ class CampaignService:
                 """,
                 (mid, now),
             )
-            self._update(conn, cid, mid, now, state="opted_out", reason="dtmf_9")
-            return twilio.say_and_hang_up(self.policy.opt_out_confirmation)
-        if digits == "0":
-            self._update(conn, cid, mid, now, state="escalated", reason="dtmf_0")
+            self._update(conn, cid, mid, now, state="opted_out", reason=f"dtmf_{digits}")
+            return twilio.say_and_hang_up(lang.opt_out_confirmation, language=lang.say_language)
+        if digits == rules.callback_digit:
+            self._update(conn, cid, mid, now, state="escalated", reason=f"dtmf_{digits}")
             self._escalate(
                 conn, "member_request", cid, mid, attempt["id"], now,
-                "member pressed 0 to ask for a call back",
+                f"member pressed {digits} to ask for a call back",
             )  # fmt: skip
-            return twilio.say_and_hang_up(self.policy.callback_confirmation)
-        return twilio.say_and_hang_up(self.policy.goodbye)
+            return twilio.say_and_hang_up(lang.callback_confirmation, language=lang.say_language)
+        return twilio.say_and_hang_up(lang.goodbye, language=lang.say_language)
 
     def _on_status(
         self, conn: psycopg.Connection[dict[str, Any]], attempt: dict[str, Any],
@@ -543,15 +587,17 @@ class CampaignService:
         now: datetime, why: str,
     ) -> None:  # fmt: skip
         cm = conn.execute(
-            "SELECT cm.calls_made, k.max_call_attempts, k.retry_delay_minutes"
+            "SELECT cm.calls_made, k.max_call_attempts, k.retry_delay_minutes, k.customer"
             " FROM campaign_members cm JOIN campaigns k ON k.id = cm.campaign_id"
             " WHERE cm.campaign_id = %s AND cm.member_id = %s AND cm.state = 'calling'",
             (campaign_id, member_id),
         ).fetchone()
         if cm is None:
             return  # already final
+        cfg = self.customer(cm["customer"])
         if cm["calls_made"] < cm["max_call_attempts"]:
-            at = self.window.next_open(now + timedelta(minutes=cm["retry_delay_minutes"]))
+            window = self.windows[cfg.id]
+            at = window.next_open(now + timedelta(minutes=cm["retry_delay_minutes"]))
             conn.execute(
                 "UPDATE campaign_members SET state = 'retry_wait', next_call_at = %s,"
                 " state_since = %s WHERE campaign_id = %s AND member_id = %s",
@@ -560,9 +606,11 @@ class CampaignService:
             return
         reason = f"{cm['calls_made']} calls, last: {why}"
         self._update(conn, campaign_id, member_id, now, state="failed", reason=reason)
-        self._escalate(
-            conn, "delivery_failed", campaign_id, member_id, None, now, f"not reached: {reason}"
-        )
+        if cfg.escalation.alert_on_delivery_failure:
+            self._escalate(
+                conn, "delivery_failed", campaign_id, member_id, None, now,
+                f"not reached: {reason}",
+            )  # fmt: skip
 
     # --- alerts and the notification outbox -------------------------------------------
 
@@ -616,6 +664,23 @@ class CampaignService:
         assert row is not None  # noqa: S101 - INSERT ... RETURNING
         log.warning("escalation %s (%s): %s", row["id"], kind, detail)
         return int(row["id"])
+
+    def _attempt_context(
+        self, conn: psycopg.Connection[dict[str, Any]], attempt_id: int, *, lock: bool = False
+    ) -> dict[str, Any]:
+        """The call attempt with its campaign's customer and its script's language."""
+        sql = (
+            "SELECT a.*, k.customer, s.language FROM call_attempts a"
+            " JOIN campaigns k ON k.id = a.campaign_id"
+            " JOIN outreach_scripts s ON s.id = a.script_id WHERE a.id = %s"
+        )
+        attempt = conn.execute(sql + _FOR_UPDATE if lock else sql, (attempt_id,)).fetchone()
+        if attempt is None:
+            raise NotFoundError(f"call attempt {attempt_id} not found")
+        return attempt
+
+    def _language(self, attempt: Mapping[str, Any]) -> LanguageConfig:
+        return self.customer(attempt["customer"]).languages[attempt["language"]]
 
     def _lock_attempt(
         self, conn: psycopg.Connection[dict[str, Any]], attempt_id: int

@@ -201,3 +201,9 @@ CREATE INDEX IF NOT EXISTS escalations_outbox_idx ON escalations (id)
 
 CREATE INDEX IF NOT EXISTS escalations_open_idx ON escalations (created_at)
     WHERE resolved_at IS NULL;
+
+-- Phase 6: customers (customers/*.yaml). Rows from before Phase 6 belong to Sunrise,
+-- the only customer then; new rows always name their customer.
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS customer TEXT NOT NULL DEFAULT 'sunrise';
+ALTER TABLE outreach_scripts ADD COLUMN IF NOT EXISTS customer TEXT NOT NULL DEFAULT 'sunrise';
+ALTER TABLE outreach_scripts ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en';

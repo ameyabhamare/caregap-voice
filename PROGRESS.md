@@ -89,6 +89,7 @@
 - [x] Platform capabilities: Spanish (prompts, compliance terms, TTS) and no-name greeting
 - [x] Sunrise EN + ES (config); Horizon added as a config-only commit (fdd3770)
 - [x] Horizon campaign end to end on unchanged code; per-customer rule evals
+- [x] Voice eval unchanged on the Phase 5 scripts: WER 2.3%, names 54.5% -> 88.6% (de216841)
 - [ ] Approved
 
 ## Resume here (hand-off between sessions)

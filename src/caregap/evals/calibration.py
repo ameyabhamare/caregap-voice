@@ -185,8 +185,7 @@ def _agreement_main() -> int:
     judge = Judge(build_client(settings), MlflowPromptStore(settings.mlflow_tracking_uri))
     verdicts = [judge.judge(r["script"], purpose=f"judge-calibration:{r['id']}") for r in rows]
     results = {
-        c: agreement([r[c] == "y" for r in rows], [v.scores[c] for v in verdicts])
-        for c in CRITERIA
+        c: agreement([r[c] == "y" for r in rows], [v.scores[c] for v in verdicts]) for c in CRITERIA
     }
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     mlflow.set_experiment(EXPERIMENT)

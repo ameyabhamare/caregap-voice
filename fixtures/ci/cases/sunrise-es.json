@@ -1,0 +1,305 @@
+[
+ {
+  "member": {
+   "member_id": "0ceb64cd-cafc-ded8-d464-df48daa88ea8",
+   "given_name": "Emilia",
+   "family_name": "Gastélum",
+   "birth_date": "1960-01-01",
+   "phone": "555-491-4332",
+   "age": 66,
+   "language": "es"
+  },
+  "open_measures": [
+   "awv"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "20acfd54-8e69-a151-231a-bd6b6c18f266",
+   "given_name": "Miguel",
+   "family_name": "Barraza",
+   "birth_date": "1944-03-09",
+   "phone": "555-610-4690",
+   "age": 82,
+   "language": "es"
+  },
+  "open_measures": [
+   "statin"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "06634af2-627f-e773-777f-c42e7c20e17e",
+   "given_name": "Susana",
+   "family_name": "Saldaña",
+   "birth_date": "1941-03-17",
+   "phone": "555-123-5808",
+   "age": 85,
+   "language": "es"
+  },
+  "open_measures": [
+   "awv",
+   "statin"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "f6385e9d-7adc-e510-1fd1-886db5de1541",
+   "given_name": "José Luis",
+   "family_name": "Rosales",
+   "birth_date": "1943-02-21",
+   "phone": "555-401-1561",
+   "age": 83,
+   "language": "es"
+  },
+  "open_measures": [
+   "statin"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "88069601-3e67-73ff-567e-57e890689611",
+   "given_name": "Gabriel",
+   "family_name": "Quintana",
+   "birth_date": "1953-08-07",
+   "phone": "555-197-1317",
+   "age": 73,
+   "language": "es"
+  },
+  "open_measures": [
+   "eye_exam"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "8457c334-50d1-b3af-d418-f1133142cbbd",
+   "given_name": "Marco Antonio",
+   "family_name": "Carrasquillo",
+   "birth_date": "1953-12-08",
+   "phone": "555-916-6926",
+   "age": 72,
+   "language": "es"
+  },
+  "open_measures": [
+   "awv"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "5baaa05e-9ac5-1812-05cf-360242e9287b",
+   "given_name": "Micaela",
+   "family_name": "Elizondo",
+   "birth_date": "1955-11-12",
+   "phone": "555-457-8485",
+   "age": 70,
+   "language": "es"
+  },
+  "open_measures": [
+   "awv",
+   "eye_exam"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "2180b115-a371-3923-cc93-4722d3f1c399",
+   "given_name": "Rocio",
+   "family_name": "Linares",
+   "birth_date": "1956-04-26",
+   "phone": "555-963-4424",
+   "age": 70,
+   "language": "es"
+  },
+  "open_measures": [
+   "awv"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "1fa4a850-7c4a-a188-597c-815ac2009838",
+   "given_name": "Adela",
+   "family_name": "Ferrer",
+   "birth_date": "1939-05-06",
+   "phone": "555-583-3613",
+   "age": 87,
+   "language": "es"
+  },
+  "open_measures": [
+   "awv"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "2dbfe52b-f213-1e69-ca8a-5ea193e54144",
+   "given_name": "Rubén",
+   "family_name": "Fernández",
+   "birth_date": "1938-03-14",
+   "phone": "555-835-1945",
+   "age": 88,
+   "language": "es"
+  },
+  "open_measures": [
+   "awv"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "c84e0596-c44c-a5d1-4e80-b3abf009cab8",
+   "given_name": "Concepción",
+   "family_name": "Gracia",
+   "birth_date": "1957-09-12",
+   "phone": "555-103-7638",
+   "age": 69,
+   "language": "es"
+  },
+  "open_measures": [
+   "awv"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "caaa3420-0ebe-b250-745b-044767eb136e",
+   "given_name": "Berta",
+   "family_name": "Alicea",
+   "birth_date": "1956-10-17",
+   "phone": "555-153-6966",
+   "age": 70,
+   "language": "es"
+  },
+  "open_measures": [
+   "awv"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "dbe2cd92-4967-679e-c438-786deffa7a54",
+   "given_name": "Margarita",
+   "family_name": "Báez",
+   "birth_date": "1948-11-07",
+   "phone": "555-655-2350",
+   "age": 77,
+   "language": "es"
+  },
+  "open_measures": [
+   "awv",
+   "statin"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "f4ed33b0-dd82-0c36-9078-106f833a7c6f",
+   "given_name": "Clemente",
+   "family_name": "Banda",
+   "birth_date": "1948-08-02",
+   "phone": "555-842-4882",
+   "age": 78,
+   "language": "es"
+  },
+  "open_measures": [
+   "awv"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "4bc2efa0-148f-831c-523c-88a045c6f20d",
+   "given_name": "Caridad",
+   "family_name": "Galarza",
+   "birth_date": "1944-12-16",
+   "phone": "555-936-1778",
+   "age": 81,
+   "language": "es"
+  },
+  "open_measures": [
+   "statin"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "6c2b6d26-c442-2ce4-acfb-d3191d3befde",
+   "given_name": "Guillermo",
+   "family_name": "Córdova",
+   "birth_date": "1940-02-23",
+   "phone": "555-700-2337",
+   "age": 86,
+   "language": "es"
+  },
+  "open_measures": [
+   "awv"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "6339fbfc-d049-eae7-ef00-a2a1d8525fda",
+   "given_name": "Rosalia",
+   "family_name": "Santana",
+   "birth_date": "1941-09-08",
+   "phone": "555-244-5268",
+   "age": 85,
+   "language": "es"
+  },
+  "open_measures": [
+   "awv"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "266953ea-8de7-f66b-9633-a45348ac3d55",
+   "given_name": "Eduardo",
+   "family_name": "Macías",
+   "birth_date": "1948-10-10",
+   "phone": "555-609-3432",
+   "age": 78,
+   "language": "es"
+  },
+  "open_measures": [
+   "statin"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "68ee969e-3442-20a3-0144-74cd2c9603ee",
+   "given_name": "Ramiro",
+   "family_name": "Longoria",
+   "birth_date": "1959-02-09",
+   "phone": "555-631-5870",
+   "age": 67,
+   "language": "es"
+  },
+  "open_measures": [
+   "statin"
+  ],
+  "language": "es"
+ },
+ {
+  "member": {
+   "member_id": "edge-awv-gap-13mo",
+   "given_name": "Bruno",
+   "family_name": "Edgecase",
+   "birth_date": "1952-08-19",
+   "phone": "555-0178",
+   "age": 74,
+   "language": "es"
+  },
+  "open_measures": [
+   "awv"
+  ],
+  "language": "es"
+ }
+]

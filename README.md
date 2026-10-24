@@ -240,6 +240,15 @@ document, one adds "no copay"); the Phase 8 judge is meant to catch those.
 
 See [ADR 0010](docs/adr/0010-evals-judge-and-ci-gate.md).
 
+### MCP server (Claude Desktop)
+
+The core service is also an MCP server, so Claude Desktop can work with care gaps:
+`get_member_gaps`, `search_benefits`, `log_interaction` and `escalate_to_human`. It runs
+over stdio on your computer (`make mcp-config` prints the Claude Desktop entry). An agent
+sees only the member fields and measures the plan allows. Escalations go to the same
+outbox as the campaigns, and n8n delivers them with IDs only. Setup and a walkthrough are
+in [docs/mcp.md](docs/mcp.md); the design is in [ADR 0011](docs/adr/0011-mcp-integration-surface.md).
+
 > Upgrading from Phase 0: HAPI moved from H2 to Postgres. Run `make nuke && make up` once
 > so Postgres creates the `hapi` database.
 

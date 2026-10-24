@@ -40,6 +40,8 @@ src/caregap/          Python package
   telephony/          Twilio wire format (signatures, TwiML) and the local Twilio mock
   rag/                benefits documents (md -> PDF -> sections), pgvector chunks + retriever,
                       callback agent with grounding check, callback service
+  members.py          what an agent may see/do for a member (MCP tools' rules)
+  mcp/                MCP server over the core HTTP API (stdio; `python -m caregap.mcp`)
   prompts.py          prompt files <-> MLflow prompt registry
   voice/              TTS (Kokoro), paid stubs, pronunciation overrides, STT, WER, rendering
   evals/              eval suites logged to MLflow: rules, voice, rag, judge + calibration,
@@ -89,6 +91,8 @@ docs/adr/             architecture decision records
 - Tests marked `models` load real TTS/STT files from `data/cache`; `make check` skips them.
 - `make run-campaign CUSTOMER=horizon` imports the n8n workflows and runs a 20-member
   campaign end to end (`CAMPAIGN_SIZE=...`, default customer sunrise). `make n8n-export` after editing workflows in the n8n UI.
+- `make mcp-config` prints the Claude Desktop entry for the MCP server (docs/mcp.md);
+  `make mcp` runs it on stdio. `make db-schema` applies schema changes to an old volume.
 - `make pipeline` (local PySpark) then `make sync-gaps`. `make pipeline-databricks` runs the
   job on Databricks serverless and syncs its output instead.
 
@@ -122,6 +126,9 @@ docs/adr/             architecture decision records
   goes in `caregap.campaign.service`.
 - Campaign state changes are conditional updates under row locks; keep endpoints
   idempotent, since n8n executions overlap.
+- The MCP server is a thin layer like n8n: one core API call per tool, rules in
+  `caregap.members`. Agent free text goes in `note`/`summary`, never in escalation
+  `detail` (notifications carry IDs only).
 - n8n is pinned to 1.121.3: later versions cannot activate CLI-imported workflows (ADR 0007).
 - New drug or plan names go in `voice/pronunciations.yaml` and `fixtures/voice/name_sentences.yaml`
   (a test keeps them in sync and checks IPA symbols against Kokoro's vocabulary).

@@ -13,7 +13,7 @@
 | 6 | Multi-customer config | Approved |
 | 7 | RAG callback agent + hallucination analysis | Approved |
 | 8 | LLM-as-a-Judge, prompt iteration, CI gate | Approved |
-| 9 | MCP server | Not started |
+| 9 | MCP server | Built, report posted |
 | 10 | Observability + governance | Not started |
 | 11 | Live demo mode (optional spend) | Not started |
 | 12 | Docs and handoff | Not started |
@@ -118,8 +118,20 @@
 - [x] Promotion rule: judge guards block only for calibrated criteria (`judge.TRUSTED_CRITERIA`)
 - [x] Phase report posted, approved (2026-10-24)
 
+## Phase 9: MCP server
+- [x] `mcp` SDK 2.3.0 (owner-approved dependency); `caregap.mcp` stdio server, 4 tools
+- [x] Core endpoints: `GET /members/{id}`, `POST /members/{id}/interactions`,
+      `POST /escalations` (idempotent while open), `POST /benefits/search`; rules in
+      `caregap.members`; `member_interactions` table, `agent_request` escalations
+- [x] Unit tests (fake core, in-process MCP client) and integration tests, including the
+      stdio server against a running core service
+- [x] Live check: real member, real embeddings, escalation delivered by n8n (IDs only)
+- [x] docs/mcp.md (Claude Desktop setup), `make mcp-config`, ADR 0011
+- [ ] Owner: connect Claude Desktop, inspect a member, trigger an escalation
+- [ ] Approved
+
 ## Resume here (hand-off between sessions)
-Status: Phases 0-8 approved. Next: post the Phase 9 plan (MCP server) and wait for "go".
+Status: Phases 0-8 approved; Phase 9 built, report posted; waiting for "approved".
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`,
@@ -205,6 +217,9 @@ Environment quirks seen in the cloud container:
 | 2026-10-23 | CI replays recorded responses keyed by request hash; missing recording fails | CI never calls a model; prompt or request changes force a reviewed re-record. |
 | 2026-10-24 | No judge criterion gates CI (none reaches kappa 0.4) | Owner calibration: qwen2.5:3b judge agrees no better than chance on clarity and never fails tone. |
 | 2026-10-24 | Judge guards block prompt promotion only for calibrated criteria (`judge.TRUSTED_CRITERIA`, same as CI) | Owner decision: an uncalibrated judge must not reject a prompt (v2 was rejected on judge false positives); judge metrics are still reported. v2 not re-decided (v3 supersedes it). |
+| 2026-10-24 | MCP over stdio only, official `mcp` SDK 2.3.0, thin layer over the core API | Claude Desktop launches local servers; no new port or auth. ADR 0011. Approved default. |
+| 2026-10-24 | Agents see only `allowed_member_fields` and the plan's measures; agent text in `note`, not `detail` | Same minimum-necessary rule as prompts; notifications stay IDs-only. |
+| 2026-10-24 | New escalation kind `agent_request`, idempotent per member + reason while open | Tool calls get retried; agent requests stay distinguishable. Approved default. |
 | 2026-10-22 | HAPI default (distroless) image, using its bundled `HealthCheck` probe | The `-tomcat` variant cannot unpack its WAR as non-root and took more than 14 min without ever becoming healthy; the default image is healthy in about 35 s. |
 
 ## Open questions

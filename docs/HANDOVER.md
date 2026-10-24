@@ -17,36 +17,18 @@ else, read, in order:
 4. `docs/adr/` 0001-0010, especially 0010 (judge, prompt iteration, CI gate).
 
 ## Where things stand
-- Phases 0-7 are approved. Phase 8 (LLM-as-a-Judge, prompt iteration, CI gate) is built,
-  its report is posted, CI is green on the branch (GitHub Actions runs 4 and 5).
-- **Update 2026-10-24**: the owner labeled all 50 scripts (committed). Agreement (MLflow
+- Phases 0-8 are approved (Phase 8 on 2026-10-24). **Next action: post the Phase 9 plan**
+  (MCP server exposing get_member_gaps, search_benefits, log_interaction,
+  escalate_to_human; Claude Desktop connection config; acceptance: Claude Desktop can
+  inspect a member and trigger an escalation) and wait for "go".
+- Judge calibration (owner labels, all 50 in `fixtures/judge/calibration.csv`; MLflow
   judge-calibration 8c7d1295): clarity 66%, kappa -0.08; tone 98%, kappa 0.00; no medical
-  advice 100%, kappa n/a. No criterion reaches 0.4, so `GATED_JUDGE_CRITERIA` stays empty
-  and no re-record is needed. Remaining: the owner's answer on the promotion-rule
-  question and "approved". The steps below are kept for reference.
-- **Was waiting on the owner**: they are labeling the 50 scripts in
-  `fixtures/judge/calibration.csv` (columns `clarity`, `tone`, `no_medical_advice`, each
-  `y` = pass or `n` = fail; `notes` optional). They may send labels back as:
-  a. an attached CSV - copy it over `fixtures/judge/calibration.csv` (check: 50 rows, same
-     ids and scripts, labels only `y`/`n`);
-  b. chat lines like `cal-01: y y n` (order: clarity, tone, no_medical_advice) - write
-     them into the CSV with `caregap.evals.calibration.read/write`;
-  c. they ran `make label-judge` themselves and pushed.
-  Never pre-fill, guess or suggest labels. If something is missing or ambiguous, ask.
-- **Then**: commit the labels, run `make judge-agreement` (needs the stack and Ollama),
-  and report per criterion: accuracy, Cohen's kappa, and the confusion counts (MLflow
-  experiment `judge-calibration`). For each criterion with kappa >= 0.4, add it to
-  `GATED_JUDGE_CRITERIA` in `src/caregap/evals/ci.py`, run `make record-fixtures`
-  (about 2 hours), review the new thresholds, commit `fixtures/ci` and `reports/`, push,
-  and confirm CI is green.
-- **Open question for the owner** (ask after the agreement report): outreach-script v2
-  ("three sentences" fix) was rejected only because judged medical-advice failures rose
-  57 -> 63, and those looked like judge false positives on refill reminders. If the
-  medical-advice criterion's kappa is low, should v2 be re-decided without that guard?
-  Do not re-decide it without their answer.
-- After "approved": mark Phase 8 approved in PROGRESS.md and this file, then post the
-  Phase 9 plan (MCP server: get_member_gaps, search_benefits, log_interaction,
-  escalate_to_human; Claude Desktop config) and wait for "go".
+  advice 100%, kappa n/a. No criterion reaches 0.4, so `judge.TRUSTED_CRITERIA` is empty:
+  judge metrics are reported but block neither CI (`ci.derive_thresholds`) nor prompt
+  promotion (`suite.decide`). If the judge or its prompt changes, re-run
+  `make judge-agreement`; add a criterion only once its kappa is 0.4 or more, then
+  `make record-fixtures` and review the new thresholds.
+- Never pre-fill, guess or suggest judge labels.
 
 ## Phase 8 facts worth knowing
 - Prompts in production: outreach-script v3 (no health claims; promoted), outreach-judge

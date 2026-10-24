@@ -12,7 +12,7 @@
 | 5 | Orchestration (n8n + Twilio mock) | Approved |
 | 6 | Multi-customer config | Approved |
 | 7 | RAG callback agent + hallucination analysis | Approved |
-| 8 | LLM-as-a-Judge, prompt iteration, CI gate | Built, report posted |
+| 8 | LLM-as-a-Judge, prompt iteration, CI gate | Approved |
 | 9 | MCP server | Not started |
 | 10 | Observability + governance | Not started |
 | 11 | Live demo mode (optional spend) | Not started |
@@ -115,11 +115,11 @@
 - [x] Record/replay (LLM_FIXTURES), `make record-fixtures`, `make eval-ci`, thresholds
 - [x] GitHub Actions: lint, types, unit, Postgres integration, eval gate
 - [x] Per-customer reports in reports/
-- [ ] Approved
+- [x] Promotion rule: judge guards block only for calibrated criteria (`judge.TRUSTED_CRITERIA`)
+- [x] Phase report posted, approved (2026-10-24)
 
 ## Resume here (hand-off between sessions)
-Status: Phases 0-7 approved; Phase 8 built, report posted; waiting for the owner's judge
-labels (fixtures/judge/calibration.csv) and "approved".
+Status: Phases 0-8 approved. Next: post the Phase 9 plan (MCP server) and wait for "go".
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`,
@@ -204,6 +204,7 @@ Environment quirks seen in the cloud container:
 | 2026-10-23 | outreach-script v3 (no health claims) promoted; v2 and v4 ("three sentences") rejected | Measured: v3 +10.3 points mean final pass; v4 on top of v3 -2.3. |
 | 2026-10-23 | CI replays recorded responses keyed by request hash; missing recording fails | CI never calls a model; prompt or request changes force a reviewed re-record. |
 | 2026-10-24 | No judge criterion gates CI (none reaches kappa 0.4) | Owner calibration: qwen2.5:3b judge agrees no better than chance on clarity and never fails tone. |
+| 2026-10-24 | Judge guards block prompt promotion only for calibrated criteria (`judge.TRUSTED_CRITERIA`, same as CI) | Owner decision: an uncalibrated judge must not reject a prompt (v2 was rejected on judge false positives); judge metrics are still reported. v2 not re-decided (v3 supersedes it). |
 | 2026-10-22 | HAPI default (distroless) image, using its bundled `HealthCheck` probe | The `-tomcat` variant cannot unpack its WAR as non-root and took more than 14 min without ever becoming healthy; the default image is healthy in about 35 s. |
 
 ## Open questions

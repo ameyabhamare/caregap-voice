@@ -16,13 +16,16 @@ worse, and CI (a public GitHub repository) must never call a paid API or a large
   scripts that failed compliance, with empty label columns. The owner labels them
   (`make label-judge` or any spreadsheet); nothing pre-fills or suggests labels.
   `make judge-agreement` reports accuracy and Cohen's kappa per criterion to MLflow. A
-  criterion gates CI only once its kappa is 0.4 or more; until then it is reported.
+  criterion gates CI or prompt promotion only once its kappa is 0.4 or more
+  (`judge.TRUSTED_CRITERIA`); until then it is reported. Owner calibration on 2026-10-24:
+  none qualify.
 - **Prompt iteration.** `make prompts-candidate` registers changed prompts under a
   `candidate` alias; `make eval ALIAS=candidate` runs the suite (Sunrise, Sunrise
   Spanish, Horizon: rules + judge + reading level) as one MLflow run with a child per
   configuration and compares it with the last promoted run. Promote only if the mean
   final compliance pass rate improves, no guard metric drops more than 3 points and
-  judged medical-advice failures do not rise. Promotion moves `production`; a rejected
+  judged medical-advice failures do not rise; judge-based guards count only for trusted
+  criteria (amended 2026-10-24, owner decision). Promotion moves `production`; a rejected
   candidate leaves production alone and its file is restored. Configurations whose
   inputs did not change are reused from earlier runs.
 - **CI without models.** `LLM_FIXTURES=record` saves every chat and embedding response,

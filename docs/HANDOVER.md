@@ -17,10 +17,15 @@ else, read, in order:
 4. `docs/adr/` 0001-0010, especially 0010 (judge, prompt iteration, CI gate).
 
 ## Where things stand
-- Phases 0-8 are approved (Phase 8 on 2026-10-24). **Next action: post the Phase 9 plan**
-  (MCP server exposing get_member_gaps, search_benefits, log_interaction,
-  escalate_to_human; Claude Desktop connection config; acceptance: Claude Desktop can
-  inspect a member and trigger an escalation) and wait for "go".
+- Phases 0-8 are approved (Phase 8 on 2026-10-24). CI is green on the branch (GitHub
+  Actions run 14, commit 0714a50).
+- The Phase 9 plan below was posted to the owner on 2026-10-24; they have not said "go"
+  yet. **First action**: check local state (see Environment), then:
+  - if the owner's first message says "go" (with or without answers to the decisions),
+    build Phase 9 as planned, applying any changes they ask for;
+  - otherwise post the plan below (concise, with the decisions) and wait for "go".
+  The `mcp` SDK is a new dependency category: do not add it until the owner has said yes
+  (a plain "go" accepts the plan, including it).
 - Judge calibration (owner labels, all 50 in `fixtures/judge/calibration.csv`; MLflow
   judge-calibration 8c7d1295): clarity 66%, kappa -0.08; tone 98%, kappa 0.00; no medical
   advice 100%, kappa n/a. No criterion reaches 0.4, so `judge.TRUSTED_CRITERIA` is empty:
@@ -29,6 +34,47 @@ else, read, in order:
   `make judge-agreement`; add a criterion only once its kappa is 0.4 or more, then
   `make record-fixtures` and review the new thresholds.
 - Never pre-fill, guess or suggest judge labels.
+
+## Phase 9 plan (posted, awaiting "go")
+Brief: expose core as an MCP server (get_member_gaps, search_benefits, log_interaction,
+escalate_to_human) plus instructions and config for Claude Desktop. Acceptance: Claude
+Desktop can inspect a member and trigger an escalation.
+- `src/caregap/mcp/`: a thin MCP server over the core service's HTTP API (`CORE_URL`);
+  no business logic in it, like n8n. Transport: stdio (what Claude Desktop launches),
+  `uv run python -m caregap.mcp`.
+- Tools:
+  - `get_member_gaps(member_id, year?)`: open gaps + only the member fields the
+    customer's `allowed_member_fields` permits (existing `/members/{id}/gaps`, plus a
+    new `GET /members/{id}`).
+  - `search_benefits(customer, query, k=5)`: verbatim benefit lines with chunk ids from
+    the existing pgvector retriever, embeddings through the metered `EmbeddingClient`.
+    Nothing generated, so no grounding check; spoken answers still only go through the
+    callback agent (`caregap.rag.agent`).
+  - `log_interaction(member_id, channel, summary, outcome)`: new `member_interactions`
+    table (idempotent schema change in `db/schema.sql`), `POST /members/{id}/interactions`.
+  - `escalate_to_human(member_id, reason, campaign_id?)`: new escalation kind
+    `agent_request` (extend `escalations_kind_check` idempotently), `POST /escalations`,
+    idempotent on repeats; the existing escalations outbox / n8n notification workflow
+    delivers it unchanged.
+- Tool descriptions state the data is synthetic and the tools never give medical advice.
+- Docs: `docs/mcp.md` (Claude Desktop `claude_desktop_config.json` snippet; running the
+  stack locally so Desktop can reach it); ADR 0011 "MCP as integration surface",
+  including the trust boundary (data sent to Claude Desktop leaves the machine, which is
+  fine only because all data is synthetic). Update CLAUDE.md layout/commands.
+- Tests: unit (tool schemas, mapping to API with a fake core); integration with Postgres
+  (new endpoints, escalation idempotency, and an end-to-end test using the MCP SDK's own
+  stdio client: list tools, inspect a member, escalate). CI makes no model calls;
+  `search_benefits` uses recorded embedding fixtures.
+- Acceptance: the stdio client test passes here; the owner connects Claude Desktop per
+  `docs/mcp.md`, asks about a member and triggers an escalation that shows up in the
+  escalations table.
+- Decision needing a yes: new dependency, the official MCP Python SDK (`mcp`, pinned
+  exactly; free, local). Alternative: hand-written JSON-RPC (not recommended).
+- Defaults: stdio only (no HTTP transport, no new port or auth); new escalation kind
+  `agent_request` (not reusing `member_request`); no write tools beyond the four in the
+  brief (no starting campaigns or editing scripts).
+- After building: phase report (five sections from BRIEF.md), wait for "approved", mark
+  Phase 9 approved in PROGRESS.md and this file, then plan Phase 10.
 
 ## Phase 8 facts worth knowing
 - Prompts in production: outreach-script v3 (no health claims; promoted), outreach-judge

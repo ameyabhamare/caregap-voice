@@ -15,15 +15,15 @@ To stop these calls, press 9 or say stop.",y,y,y,
 cal-10,sunrise,needs_review,"Hello Corine, how are you today? Remember to schedule your yearly wellness visit with your doctor. It's important for keeping you healthy. If you need help, just call your doctor's office. This message is from Sunrise Medicare Advantage and is for information only. To stop these calls, press 9 or say stop.",y,y,y,
 cal-11,sunrise,compliant,"Hello Milda, how are you doing? Remember to schedule your yearly wellness visit with your doctor to stay healthy. This message is from Sunrise Medicare Advantage and is for information only. It is not medical advice.
 To stop these calls, press 9 or say stop.",n,y,y,
-cal-12,sunrise,compliant,"Hello Kaley, how are you doing? Remember to schedule your yearly eye exam and keep your cholesterol medication refills on schedule. Take care of yourself and don't hesitate to call your doctor if you need anything. This message is from Sunrise Medicare Advantage and is for information only. It is not medical advice. To stop these calls, press 9 or say stop.",,,,
+cal-12,sunrise,compliant,"Hello Kaley, how are you doing? Remember to schedule your yearly eye exam and keep your cholesterol medication refills on schedule. Take care of yourself and don't hesitate to call your doctor if you need anything. This message is from Sunrise Medicare Advantage and is for information only. It is not medical advice. To stop these calls, press 9 or say stop.",y,y,y,
 cal-13,sunrise,compliant,"Hi Kiara, let's not forget your yearly wellness visit with your doctor. It's a great time to catch up and stay healthy. Also, remember to keep your cholesterol medication refills on schedule. Take care of yourself, Kiara.
 This message is from Sunrise Medicare Advantage and is for information only. It is not medical advice.
-To stop these calls, press 9 or say stop.",,,,
-cal-14,sunrise,needs_review,"Hello Joshua, how are you doing? Remember to keep your cholesterol medication refills on schedule to stay healthy. If you need to talk to your doctor, they are just a call away. This message is from Sunrise Medicare Advantage and is for information only. To stop these calls, press 9 or say stop.",,,,
-cal-15,sunrise,compliant,"Hi Andrew, it's Sarah from Sunrise Medicare Advantage. Just a reminder, it's a good time to schedule your yearly wellness visit with your doctor. Remember, it's important for your health. If you need to talk to your doctor, they're just a phone call away. This message is from Sunrise Medicare Advantage and is for information only. It is not medical advice. To stop these calls, press 9 or say stop.",,,,
+To stop these calls, press 9 or say stop.",n,y,y,
+cal-14,sunrise,needs_review,"Hello Joshua, how are you doing? Remember to keep your cholesterol medication refills on schedule to stay healthy. If you need to talk to your doctor, they are just a call away. This message is from Sunrise Medicare Advantage and is for information only. To stop these calls, press 9 or say stop.",y,y,y,
+cal-15,sunrise,compliant,"Hi Andrew, it's Sarah from Sunrise Medicare Advantage. Just a reminder, it's a good time to schedule your yearly wellness visit with your doctor. Remember, it's important for your health. If you need to talk to your doctor, they're just a phone call away. This message is from Sunrise Medicare Advantage and is for information only. It is not medical advice. To stop these calls, press 9 or say stop.",y,y,y,
 cal-16,sunrise,compliant,"Hello Yuonne, how are you doing? Remember to schedule your yearly wellness visit with your doctor soon. Take care of yourself.
 This message is from Sunrise Medicare Advantage and is for information only. It is not medical advice.
-To stop these calls, press 9 or say stop.",,,,
+To stop these calls, press 9 or say stop.",n,y,y,
 cal-17,sunrise,compliant,"Hello Jeri, how are you doing? Remember to schedule your yearly wellness visit with your doctor soon. Take care of yourself.
 This message is from Sunrise Medicare Advantage and is for information only. It is not medical advice.
 To stop these calls, press 9 or say stop.",,,,

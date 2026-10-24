@@ -338,3 +338,6 @@ CREATE OR REPLACE VIEW stage_latency AS
         WHERE c.status IN ('completed', 'no-answer', 'busy', 'failed', 'canceled')
     UNION ALL
     SELECT 'callback_answer', customer, created_at, latency_ms FROM callback_questions;
+
+-- Phase 11: live demo mode. Live campaigns are counted against LIVE_MAX_CALLS.
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS live BOOLEAN NOT NULL DEFAULT false;

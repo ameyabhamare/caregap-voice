@@ -42,6 +42,7 @@ from caregap.customers import LANGUAGES, CustomerConfig, LanguageConfig
 from caregap.outreach.generate import COMPLIANT, ScriptGenerator
 from caregap.outreach.profile import OutreachProfile
 from caregap.outreach.store import NotFoundError, OutreachStore
+from caregap.storage.r2 import R2Bucket
 from caregap.telephony import twilio
 from caregap.voice.render import AudioRenderer, latest_audio
 
@@ -56,6 +57,7 @@ STALE_CALLING = timedelta(minutes=30)
 MAX_PREPARING = 2
 #: Advisory lock key serializing prepare claims (so the cap holds under concurrency).
 _PREPARE_LOCK = 0x63617265  # "care"
+_LIVE_LOCK = 0x6C697665  # "live"
 
 _FOR_UPDATE = " FOR UPDATE OF a"
 
@@ -71,6 +73,21 @@ class EventConflictError(RuntimeError):
     pass
 
 
+class LiveLimitError(RuntimeError):
+    """Live mode refuses: a call beyond LIVE_MAX_CALLS, or a live campaign of more than
+    one member."""
+
+
+@dataclass(frozen=True)
+class LiveConfig:
+    """Phase 11 live mode (``caregap.live`` checked these at startup)."""
+
+    demo_number: str
+    allowed_numbers: frozenset[str]
+    max_calls: int
+    record_calls: bool
+
+
 @dataclass(frozen=True)
 class TelephonyConfig:
     public_base_url: str
@@ -79,6 +96,18 @@ class TelephonyConfig:
     account_sid: str
     auth_token: str
     from_number: str
+    #: Where Twilio fetches call audio; None serves it from the core service.
+    r2: R2Bucket | None = None
+    live: LiveConfig | None = None
+
+
+#: Signed audio URLs: n8n has this long to upload, Twilio this long to fetch.
+UPLOAD_URL_TTL_S = 600
+AUDIO_URL_TTL_S = 900
+
+
+def audio_key(attempt_id: int) -> str:
+    return f"calls/{attempt_id}.wav"
 
 
 class CampaignService:
@@ -134,14 +163,18 @@ class CampaignService:
         p = cfg.campaign
         lo, hi = cfg.members.bounds()
         now = self.clock.now()
+        live = self.tel.live is not None
+        if live and size != 1:
+            raise LiveLimitError("live mode runs one-member campaigns only")
         with self._tx() as conn:
             campaign = conn.execute(
                 "INSERT INTO campaigns (customer, name, measurement_year, approval_first_n,"
-                " max_call_attempts, retry_delay_minutes, created_at)"
-                " VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *",
-                (cfg.id, name, measurement_year, p.approval_first_n, p.max_call_attempts,
+                " max_call_attempts, retry_delay_minutes, created_at, live)"
+                " VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING *",
+                (cfg.id, name, measurement_year, p.approval_first_n,
+                 1 if live else p.max_call_attempts,
                  p.retry_delay_minutes if retry_delay_minutes is None else retry_delay_minutes,
-                 now),
+                 now, live),
             ).fetchone()  # fmt: skip
             assert campaign is not None  # noqa: S101 - INSERT ... RETURNING
             candidates = conn.execute(
@@ -164,12 +197,18 @@ class CampaignService:
                 """,
                 {
                     "year": measurement_year,
-                    "size": size,
+                    # Live mode: look further, then keep only the first callable member.
+                    "size": 200 if live else size,
                     "measures": list(cfg.measures),
                     "lo": lo,
                     "hi": hi,
                 },
             ).fetchall()
+            if live:
+                candidates = [
+                    c for c in candidates
+                    if not skip_reason(c["deceased_date"], c["consent"], c["phone"])
+                ][:1]  # fmt: skip
             for c in candidates:
                 reason = skip_reason(c["deceased_date"], c["consent"], c["phone"])
                 conn.execute(
@@ -412,6 +451,8 @@ class CampaignService:
                 return {"action": "skipped", "reason": reason}
             to = twilio.to_e164(cm["phone"])
             assert to is not None  # noqa: S101 - skip_reason checked it
+            if self.tel.live is not None:
+                to = self._live_destination(conn, cm)
             audio = latest_audio(self.conninfo, cm["script_id"])
             if audio is None:
                 script = self.outreach.script(cm["script_id"])
@@ -451,14 +492,45 @@ class CampaignService:
             auth_token=self.tel.auth_token,
             to=to,
             from_=self.tel.from_number,
-            twiml_url=self.twiml_url(attempt["id"]),
+            twiml_url=self.callback_url(attempt["id"], "twiml"),
             status_callback=self.callback_url(attempt["id"], "status"),
+            record=self.tel.live is not None and self.tel.live.record_calls,
         )
-        return {
+        out: dict[str, Any] = {
             "action": "call",
             "attempt_id": attempt["id"],
             "twilio": {"url": req.url, "authorization": req.authorization, "form": req.form},
         }
+        if self.tel.r2 is not None:
+            # n8n copies the audio from the core service to this short-lived URL before it
+            # places the call; Twilio then fetches it from R2 (see twiml()).
+            out["upload"] = {
+                "script_id": cm["script_id"],
+                "put_url": self.tel.r2.put_url(
+                    audio_key(attempt["id"]), expires_s=UPLOAD_URL_TTL_S
+                ),
+                "content_type": "audio/wav",
+            }
+        return out
+
+    def _live_destination(
+        self, conn: psycopg.Connection[dict[str, Any]], cm: Mapping[str, Any]
+    ) -> str:
+        """Live mode calls only the owner's verified demo number, at most max_calls times,
+        never the synthetic member's number."""
+        live = self.tel.live
+        assert live is not None  # noqa: S101 - caller checked
+        if live.demo_number not in live.allowed_numbers:
+            raise LiveLimitError("LIVE_DEMO_NUMBER is not an allowed number")
+        # Serialize live sends so two cannot both pass the count.
+        conn.execute("SELECT pg_advisory_xact_lock(%s)", (_LIVE_LOCK,))
+        placed = conn.execute(
+            "SELECT count(*) AS n FROM call_attempts a JOIN campaigns k ON k.id = a.campaign_id"
+            " WHERE k.live"
+        ).fetchone()
+        if placed is not None and placed["n"] >= live.max_calls:
+            raise LiveLimitError(f"LIVE_MAX_CALLS reached ({live.max_calls} live calls)")
+        return live.demo_number
 
     def dispatched(self, attempt_id: int, call_sid: str) -> None:
         with self._tx() as conn:
@@ -513,28 +585,28 @@ class CampaignService:
 
     # --- telephony callbacks -----------------------------------------------------------
 
-    def twiml_url(self, attempt_id: int) -> str:
-        return f"{self.tel.public_base_url.rstrip('/')}/twiml/attempts/{attempt_id}"
-
     def callback_url(self, attempt_id: int, event: str) -> str:
+        """The n8n webhook Twilio calls for this attempt: the TwiML fetch (``twiml``), the
+        keypress (``gather``) and call status (``status``). Only this webhook is public."""
         sep = "&" if "?" in self.tel.callback_url else "?"
         url = f"{self.tel.callback_url}{sep}attempt_id={attempt_id}"
-        return url + "&event=gather" if event == "gather" else url
+        return url if event == "status" else f"{url}&event={event}"
+
+    def audio_url(self, attempt: Mapping[str, Any]) -> str:
+        if self.tel.r2 is not None:
+            return self.tel.r2.get_url(audio_key(attempt["id"]), expires_s=AUDIO_URL_TTL_S)
+        return f"{self.tel.public_base_url.rstrip('/')}/scripts/{attempt['script_id']}/audio"
 
     def _check_signature(self, url: str, params: Mapping[str, str], sig: str) -> None:
         if not twilio.valid_signature(self.tel.auth_token, url, params, sig):
             raise InvalidSignatureError("invalid X-Twilio-Signature")
 
-    def twiml(self, attempt_id: int, params: Mapping[str, str], sig: str) -> str:
+    def _twiml(self, attempt: Mapping[str, Any]) -> str:
         """TwiML for an answered call: play the rendered message, listen for one digit."""
-        self._check_signature(self.twiml_url(attempt_id), params, sig)
-        with self._tx() as conn:
-            attempt = self._attempt_context(conn, attempt_id)
         lang = self._language(attempt)
-        audio_url = f"{self.tel.public_base_url.rstrip('/')}/scripts/{attempt['script_id']}/audio"
         return twilio.play_and_gather(
-            audio_url,
-            self.callback_url(attempt_id, "gather"),
+            self.audio_url(attempt),
+            self.callback_url(attempt["id"], "gather"),
             closing=lang.goodbye,
             language=lang.say_language,
         )
@@ -550,8 +622,13 @@ class CampaignService:
             attempt_id = int(query["attempt_id"])
         except (KeyError, ValueError) as exc:
             raise NotFoundError("callback without a valid attempt_id") from exc
-        event = "gather" if query.get("event") == "gather" else "status"
+        event = query.get("event", "status")
+        if event not in ("status", "gather", "twiml"):
+            raise NotFoundError(f"unknown telephony event {event!r}")
         self._check_signature(self.callback_url(attempt_id, event), body, sig)
+        if event == "twiml":
+            with self._tx() as conn:
+                return self._twiml(self._attempt_context(conn, attempt_id))
         now = self.clock.now()
         with self._tx() as conn:
             attempt = self._attempt_context(conn, attempt_id, lock=True)

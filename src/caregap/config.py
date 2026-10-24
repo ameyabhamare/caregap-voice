@@ -71,6 +71,24 @@ class Settings(BaseSettings):
     #: Defaults to the core service's own log sink.
     notify_webhook_url: str = "http://localhost:8000/notifications"
 
+    # Live demo mode (Phase 11): a real Twilio trial account, audio through R2. Off by
+    # default; see docs/live-demo.md. Secrets come from .env, never from code or chat.
+    live_mode: bool = False
+    #: E.164 numbers a live call may go to (comma-separated): verified trial numbers only.
+    live_allowed_numbers: str = ""
+    #: In live mode every call goes here instead of the synthetic member's number.
+    live_demo_number: str = ""
+    #: Most calls live mode will ever place (counted across live campaigns).
+    live_max_calls: int = Field(default=3, ge=0)
+    #: Record live calls on Twilio (for the README recording).
+    live_record_calls: bool = True
+    #: Where Twilio fetches call audio: ``core`` (served by the core service) or ``r2``.
+    audio_store: Literal["core", "r2"] = "core"
+    r2_endpoint: str = ""
+    r2_bucket: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: SecretStr = SecretStr("")
+
     @field_validator("campaign_clock", mode="before")
     @classmethod
     def _empty_clock_is_unset(cls, v: object) -> object:

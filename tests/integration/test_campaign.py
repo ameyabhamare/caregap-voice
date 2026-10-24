@@ -107,16 +107,17 @@ class Harness:
         tmp_path: Path,
         provider: FakeProvider,
         customers: dict[str, CustomerConfig] | None = None,
+        **settings: Any,
     ) -> None:
         self.db = db
         self.clock = FixedClock(TUESDAY_10AM)
+        defaults: dict[str, Any] = {
+            "twilio_auth_token": TOKEN,
+            "public_base_url": "http://core:8000",
+            "twilio_callback_url": "http://n8n:5678/webhook/twilio-events",
+        }
         self.settings = Settings(
-            _env_file=None,
-            database_url=db,
-            data_dir=tmp_path,
-            twilio_auth_token=TOKEN,
-            public_base_url="http://core:8000",
-            twilio_callback_url="http://n8n:5678/webhook/twilio-events",
+            _env_file=None, database_url=db, data_dir=tmp_path, **{**defaults, **settings}
         )
         llm = LLMClient(provider, CostLedger(InMemoryLedgerStore(), Decimal("5")))
         renderer = AudioRenderer(db, FakeTTS(), tmp_path, overrides_enabled=True)
@@ -142,6 +143,15 @@ class Harness:
         items = self.client.get("/work").json()["items"]
         return [(i["action"], i["member_id"]) for i in items]
 
+    def selected(self, cid: int) -> list[str]:
+        with psycopg.connect(self.db) as conn:
+            rows = conn.execute(
+                "SELECT member_id FROM campaign_members WHERE campaign_id = %s"
+                " AND state = 'selected' ORDER BY member_id",
+                (cid,),
+            ).fetchall()
+        return [r[0] for r in rows]
+
     def state(self, cid: int, mid: str) -> tuple[str, str | None]:
         with psycopg.connect(self.db) as conn:
             row = conn.execute(
@@ -152,8 +162,9 @@ class Harness:
         assert row is not None
         return row[0], row[1]
 
-    def campaign(self, size: int = 20) -> int:
-        return int(self.post("/campaigns", {"customer": "sunrise", "size": size}, status=201)["id"])
+    def campaign(self, size: int = 20, status: int = 201) -> int:
+        out = self.post("/campaigns", {"customer": "sunrise", "size": size}, status=status)
+        return int(out["id"]) if status == 201 else 0
 
     def ready(self, cid: int, *mids: str) -> None:
         """Prepare members and approve whatever waits for review."""
@@ -170,11 +181,13 @@ class Harness:
         return int(out["attempt_id"])
 
     def event(
-        self, attempt_id: int, body: dict[str, str], *, gather: bool = False, status: int = 200
-    ) -> Any:
-        query = {"attempt_id": str(attempt_id)} | ({"event": "gather"} if gather else {})
-        url = "http://n8n:5678/webhook/twilio-events?" + "&".join(
-            f"{k}={v}" for k, v in query.items()
+        self, attempt_id: int, body: dict[str, str], *, gather: bool = False, status: int = 200,
+        event: str | None = None,
+    ) -> Any:  # fmt: skip
+        event = event or ("gather" if gather else None)
+        query = {"attempt_id": str(attempt_id)} | ({"event": event} if event else {})
+        url = (
+            self.settings.twilio_callback_url + "?" + "&".join(f"{k}={v}" for k, v in query.items())
         )
         sig = twilio.signature(TOKEN, url, body)
         return self.post(
@@ -243,17 +256,20 @@ def test_a_completed_call_end_to_end(h: Harness) -> None:
     aid = out["attempt_id"]
     h.post(f"/attempts/{aid}/dispatched", {"call_sid": "CA1"})
 
-    # Twilio fetches the TwiML (signed) and plays the rendered audio.
+    # Twilio fetches the TwiML (signed) through the n8n webhook and plays the audio.
+    assert tw["form"]["Url"] == (
+        f"http://n8n:5678/webhook/twilio-events?attempt_id={aid}&event=twiml"
+    )
+    assert "Record" not in tw["form"]  # only live calls are recorded
     params = {"CallSid": "CA1", "CallStatus": "in-progress"}
-    sig = twilio.signature(TOKEN, tw["form"]["Url"], params)
-    path = urlsplit(tw["form"]["Url"]).path
-    r = h.client.post(path, data=params, headers={"X-Twilio-Signature": sig})
-    assert r.status_code == 200
-    assert "<Play>http://core:8000/scripts/" in r.text
-    assert "event=gather" in r.text
-    audio_path = r.text.split("<Play>http://core:8000")[1].split("</Play>")[0]
+    twiml = h.event(aid, params, event="twiml")["twiml"]
+    assert "<Play>http://core:8000/scripts/" in twiml
+    assert "event=gather" in twiml
+    audio_path = twiml.split("<Play>http://core:8000")[1].split("</Play>")[0]
     assert h.client.get(audio_path).content[:4] == b"RIFF"
-    assert h.client.post(path, data=params, headers={"X-Twilio-Signature": "x"}).status_code == 403
+    query = {"attempt_id": str(aid), "event": "twiml"}
+    forged = {"query": query, "body": params, "signature": "x"}
+    assert h.client.post("/telephony/events", json=forged).status_code == 403
 
     h.event(aid, {"CallSid": "CA1", "CallStatus": "ringing"})
     assert h.state(cid, "m-a") == ("calling", None)

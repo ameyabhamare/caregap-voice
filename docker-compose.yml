@@ -132,12 +132,23 @@ services:
       TTS_PRONUNCIATION_OVERRIDES: ${TTS_PRONUNCIATION_OVERRIDES:-true}
       CAMPAIGN_CLOCK: ${CAMPAIGN_CLOCK:-}
       PUBLIC_BASE_URL: http://core:8000
-      TWILIO_CALLBACK_URL: http://n8n:5678/webhook/twilio-events
+      # Live mode: the tunnel URL of the webhook (make live-up sets LIVE_WEBHOOK_URL).
+      TWILIO_CALLBACK_URL: ${LIVE_WEBHOOK_URL:-http://n8n:5678/webhook/twilio-events}
       TWILIO_API_BASE_URL: ${TWILIO_API_BASE_URL:-http://twilio-mock:8100}
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-ACmock0000000000000000000000000000}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-mock-auth-token}
       TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-+15550100000}
       NOTIFY_WEBHOOK_URL: ${NOTIFY_WEBHOOK_URL:-http://core:8000/notifications}
+      LIVE_MODE: ${LIVE_MODE:-false}
+      LIVE_ALLOWED_NUMBERS: ${LIVE_ALLOWED_NUMBERS:-}
+      LIVE_DEMO_NUMBER: ${LIVE_DEMO_NUMBER:-}
+      LIVE_MAX_CALLS: ${LIVE_MAX_CALLS:-3}
+      LIVE_RECORD_CALLS: ${LIVE_RECORD_CALLS:-true}
+      AUDIO_STORE: ${AUDIO_STORE:-core}
+      R2_ENDPOINT: ${R2_ENDPOINT:-}
+      R2_BUCKET: ${R2_BUCKET:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
     ports:
       - "127.0.0.1:${CORE_PORT:-8000}:8000"
     volumes:

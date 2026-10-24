@@ -20,8 +20,8 @@ Campaigns (Phase 5; called by n8n, see caregap.campaign.service):
     POST /campaigns/{id}/members/{member_id}/send     claim a call; returns the Twilio request
     POST /attempts/{id}/dispatched                    Twilio accepted the call
     POST /attempts/{id}/dispatch-failed               Twilio refused the call
-    POST /twiml/attempts/{id}                         TwiML for an answered call (Twilio)
-    POST /telephony/events                            a Twilio callback relayed by n8n
+    POST /telephony/events                            a Twilio request relayed by n8n: the
+                                                      TwiML fetch, keypresses, call status
     POST /alerts                                      a failed n8n workflow
     GET  /notifications/outbox                        escalations to deliver
     POST /escalations/{id}/notified                   mark one delivered
@@ -48,19 +48,20 @@ import logging
 from collections.abc import Mapping
 from datetime import UTC, date, datetime
 from typing import Any, Literal
-from urllib.parse import parse_qsl
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from langchain_core.embeddings import Embeddings
 from pydantic import BaseModel, Field
 
-from caregap import audit, observability
+from caregap import audit, live, observability
 from caregap.campaign.clock import Clock, build_clock
 from caregap.campaign.service import (
     CampaignService,
     EventConflictError,
     InvalidSignatureError,
+    LiveConfig,
+    LiveLimitError,
     TelephonyConfig,
 )
 from caregap.config import Settings, get_settings
@@ -251,6 +252,9 @@ def create_app(
     embeddings: Embeddings | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
+    # Live mode (Phase 11) talks to a real Twilio account: refuse to start half-configured.
+    if problems := live.problems(settings):
+        raise RuntimeError("live mode misconfigured: " + "; ".join(problems))
     observability.configure(settings.mlflow_tracing, settings.mlflow_tracking_uri)
     store = store or OutreachStore(settings.database_url)
     # Fail at startup, not mid-campaign, if a config is invalid.
@@ -312,6 +316,15 @@ def create_app(
             account_sid=settings.twilio_account_sid,
             auth_token=settings.twilio_auth_token.get_secret_value(),
             from_number=settings.twilio_from_number,
+            r2=live.r2_bucket(settings),
+            live=LiveConfig(
+                demo_number=settings.live_demo_number,
+                allowed_numbers=live.allowed_numbers(settings),
+                max_calls=settings.live_max_calls,
+                record_calls=settings.live_record_calls,
+            )
+            if settings.live_mode
+            else None,
         ),
         clock=clock or build_clock(settings.campaign_clock),
     )
@@ -349,6 +362,10 @@ def create_app(
     @app.exception_handler(NotFoundError)
     def not_found(_: Request, exc: NotFoundError) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=404)
+
+    @app.exception_handler(LiveLimitError)
+    def live_limit(_: Request, exc: LiveLimitError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=409)
 
     @app.exception_handler(NoCustomerError)
     def no_customer(_: Request, exc: NoCustomerError) -> JSONResponse:
@@ -502,12 +519,6 @@ def create_app(
     def dispatch_failed(attempt_id: int, req: DispatchFailedRequest) -> dict[str, str]:
         campaigns.dispatch_failed(attempt_id, req.error)
         return {"status": "ok"}
-
-    @app.post("/twiml/attempts/{attempt_id}")
-    async def twiml(attempt_id: int, request: Request) -> Response:
-        params = dict(parse_qsl((await request.body()).decode(), keep_blank_values=True))
-        doc = campaigns.twiml(attempt_id, params, request.headers.get("x-twilio-signature", ""))
-        return Response(doc, media_type="application/xml")
 
     @app.post("/telephony/events")
     def telephony_event(ev: TelephonyEvent) -> dict[str, str | None]:

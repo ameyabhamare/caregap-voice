@@ -62,18 +62,22 @@ def call_request(
     from_: str,
     twiml_url: str,
     status_callback: str,
+    record: bool = False,
 ) -> CallRequest:
+    form = {
+        "To": to,
+        "From": from_,
+        "Url": twiml_url,
+        "Method": "POST",
+        "StatusCallback": status_callback,
+        "StatusCallbackMethod": "POST",
+    }
+    if record:
+        form["Record"] = "true"
     return CallRequest(
         url=f"{api_base_url.rstrip('/')}/2010-04-01/Accounts/{account_sid}/Calls.json",
         authorization=basic_auth(account_sid, auth_token),
-        form={
-            "To": to,
-            "From": from_,
-            "Url": twiml_url,
-            "Method": "POST",
-            "StatusCallback": status_callback,
-            "StatusCallbackMethod": "POST",
-        },
+        form=form,
     )
 
 

@@ -10,6 +10,8 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
+from caregap import audit, observability
+from caregap.evals.readability import fk_grade, reading_level_ok
 from caregap.outreach.compliance import MemberContext
 from caregap.outreach.generate import ScriptOutcome
 
@@ -70,10 +72,11 @@ class OutreachStore:
         return [Gap(**r) for r in rows]
 
     def save_script(
-        self, outcome: ScriptOutcome, year: int, *, customer: str, hold: bool = False
-    ) -> int:
-        """Store a generated script. ``hold`` parks a compliant script as
-        ``pending_approval`` so a human approves it before it is used."""
+        self, outcome: ScriptOutcome, year: int, *, customer: str, hold: bool = False,
+        campaign_id: int | None = None, trace_id: str | None = None,
+    ) -> int:  # fmt: skip
+        """Store a generated script, with its audit event. ``hold`` parks a compliant
+        script as ``pending_approval`` so a human approves it before it is used."""
         status = "pending_approval" if hold and outcome.status == "compliant" else outcome.status
         attempts = [
             {
@@ -84,16 +87,22 @@ class OutreachStore:
                 "input_tokens": a.input_tokens,
                 "output_tokens": a.output_tokens,
                 "latency_ms": round(a.latency_s * 1000),
+                "compliance_ms": round(a.compliance_s * 1000),
+                "cost_usd": str(a.cost_usd),
             }
             for a in outcome.attempts
         ]
+        trace_id = trace_id or observability.trace_id()
+        compliance_ms = round(sum(a.compliance_s for a in outcome.attempts) * 1000)
         with self._connect() as conn:
             row = conn.execute(
                 """
                 INSERT INTO outreach_scripts (member_id, measurement_year, measures, status,
                     script, violations, attempts, prompt_versions, provider, model,
-                    input_tokens, output_tokens, latency_ms, customer, language)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    input_tokens, output_tokens, latency_ms, customer, language,
+                    cost_usd, compliance_ms, trace_id, campaign_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (
@@ -103,10 +112,29 @@ class OutreachStore:
                     sum(a.input_tokens for a in outcome.attempts),
                     sum(a.output_tokens for a in outcome.attempts),
                     round(sum(a.latency_s for a in outcome.attempts) * 1000),
-                    customer, outcome.language,
+                    customer, outcome.language, outcome.cost_usd, compliance_ms, trace_id,
+                    campaign_id,
                 ),
             ).fetchone()  # fmt: skip
-        assert row is not None  # noqa: S101 - INSERT ... RETURNING always returns a row
+            assert row is not None  # noqa: S101 - INSERT ... RETURNING always returns a row
+            # The message's eval scores are its rule results and (English) reading grade;
+            # the uncalibrated judge runs only in eval suites.
+            audit.record(
+                conn, "script_generated", customer=customer, campaign_id=campaign_id,
+                member_id=outcome.member_id, script_id=row["id"], trace_id=trace_id,
+                payload={
+                    "status": status, "language": outcome.language,
+                    "measures": list(outcome.measures),
+                    "prompt_versions": outcome.prompt_versions,
+                    "provider": outcome.provider, "model": outcome.model,
+                    "attempts": [[v.rule for v in a.compliance.violations]
+                                 for a in outcome.attempts],
+                    "reading_grade": round(fk_grade(outcome.script), 1)
+                    if outcome.language == "en" else None,
+                    "reading_level_ok": reading_level_ok(outcome.script, outcome.language),
+                    "cost_usd": str(outcome.cost_usd),
+                },
+            )  # fmt: skip
         return int(row["id"])
 
     def script(self, script_id: int) -> dict[str, Any]:
@@ -137,6 +165,20 @@ class OutreachStore:
                 """,
                 ("approved" if approve else "rejected", reviewer, note, script_id),
             )  # fmt: skip
+            if cur.rowcount == 1:
+                script = conn.execute(
+                    "SELECT customer, campaign_id, member_id FROM outreach_scripts WHERE id = %s",
+                    (script_id,),
+                ).fetchone()
+                assert script is not None  # noqa: S101 - just updated
+                audit.record(
+                    conn,
+                    "script_reviewed",
+                    actor=reviewer,
+                    script_id=script_id,
+                    payload={"decision": "approve" if approve else "reject", "note": note},
+                    **script,
+                )
             if cur.rowcount == 0:
                 exists = conn.execute(
                     "SELECT status FROM outreach_scripts WHERE id = %s", (script_id,)

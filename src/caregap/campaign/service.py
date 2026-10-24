@@ -35,6 +35,7 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from caregap import audit, observability
 from caregap.campaign.clock import Clock
 from caregap.campaign.window import CallWindow
 from caregap.customers import LANGUAGES, CustomerConfig, LanguageConfig
@@ -338,7 +339,13 @@ class CampaignService:
                 return {"action": "skipped", "reason": "no_open_gap"}
             member = self.outreach.member(member_id)
             profile = cfg.profile(cfg.language_for(member.language))
-            outcome = self.generators(profile).generate(member, open_measures)
+            tags = {"operation": "prepare", "customer": cfg.id, "campaign_id": campaign_id,
+                    "member_id": member_id}  # fmt: skip
+            with observability.span("prepare", "CHAIN", root=True, tags=tags) as span:
+                span.set_inputs({"measures": open_measures, "language": profile.language})
+                outcome = self.generators(profile).generate(member, open_measures)
+                span.set_outputs({"status": outcome.status})
+                trace_id = observability.trace_id()
         except Exception:
             # Give the work back; the next tick retries it.
             self._set_state(campaign_id, member_id, "selected", only_from="preparing")
@@ -351,7 +358,14 @@ class CampaignService:
                 (campaign_id,),
             ).fetchone()
             hold = gated is not None and gated["n"] < campaign["approval_first_n"]
-            script_id = self.outreach.save_script(outcome, year, customer=cfg.id, hold=hold)
+            script_id = self.outreach.save_script(
+                outcome,
+                year,
+                customer=cfg.id,
+                hold=hold,
+                campaign_id=campaign_id,
+                trace_id=trace_id,
+            )
             needs_human = hold or outcome.status != COMPLIANT
             conn.execute(
                 "UPDATE campaign_members SET state = %s, script_id = %s, human_gate = %s,"
@@ -414,6 +428,17 @@ class CampaignService:
                  now, now),
             ).fetchone()  # fmt: skip
             assert attempt is not None  # noqa: S101 - INSERT ... RETURNING
+            audit.record(
+                conn,
+                "call_queued",
+                customer=cfg.id,
+                campaign_id=campaign_id,
+                member_id=member_id,
+                script_id=cm["script_id"],
+                audio_id=audio.id,
+                call_attempt_id=attempt["id"],
+                payload={"attempt_no": cm["calls_made"] + 1},
+            )
             conn.execute(
                 "UPDATE campaign_members SET state = 'calling', calls_made = calls_made + 1,"
                 " next_call_at = NULL, state_since = %s"
@@ -437,12 +462,25 @@ class CampaignService:
 
     def dispatched(self, attempt_id: int, call_sid: str) -> None:
         with self._tx() as conn:
+            before = conn.execute(
+                "SELECT call_sid FROM call_attempts WHERE id = %s FOR UPDATE", (attempt_id,)
+            ).fetchone()
             row = conn.execute(
                 "UPDATE call_attempts SET call_sid = COALESCE(call_sid, %s),"
                 " status = CASE status WHEN 'queued' THEN 'dispatched' ELSE status END,"
-                " updated_at = %s WHERE id = %s RETURNING call_sid",
+                " updated_at = %s WHERE id = %s RETURNING call_sid, campaign_id, member_id",
                 (call_sid, self.clock.now(), attempt_id),
             ).fetchone()
+            if row is not None and before is not None and before["call_sid"] is None:
+                audit.record(
+                    conn,
+                    "call_dispatched",
+                    actor="n8n",
+                    campaign_id=row["campaign_id"],
+                    member_id=row["member_id"],
+                    call_attempt_id=attempt_id,
+                    payload={"call_sid": call_sid},
+                )
         if row is None:
             raise NotFoundError(f"call attempt {attempt_id} not found")
         if row["call_sid"] != call_sid:
@@ -459,6 +497,15 @@ class CampaignService:
                 "UPDATE call_attempts SET status = 'failed', error = %s, updated_at = %s"
                 " WHERE id = %s",
                 (error[:1000], now, attempt_id),
+            )
+            audit.record(
+                conn,
+                "call_failed_to_dispatch",
+                actor="n8n",
+                campaign_id=attempt["campaign_id"],
+                member_id=attempt["member_id"],
+                call_attempt_id=attempt_id,
+                payload={"error": error[:200]},
             )
             self._after_unsuccessful_call(
                 conn, attempt["campaign_id"], attempt["member_id"], now, "call request failed"
@@ -536,6 +583,17 @@ class CampaignService:
             "UPDATE call_attempts SET digits = %s, updated_at = %s WHERE id = %s",
             (digits, now, attempt["id"]),
         )
+        action = {rules.opt_out_digit: "opted_out", rules.callback_digit: "escalated"}
+        audit.record(
+            conn,
+            "dtmf",
+            actor="twilio",
+            customer=attempt["customer"],
+            campaign_id=cid,
+            member_id=mid,
+            call_attempt_id=attempt["id"],
+            payload={"digits": digits, "action": action.get(digits, "none")},
+        )
         if digits == rules.opt_out_digit:
             conn.execute(
                 """
@@ -572,6 +630,18 @@ class CampaignService:
              attempt["id"]),
         )  # fmt: skip
         cid, mid = attempt["campaign_id"], attempt["member_id"]
+        audit.record(
+            conn,
+            "call_finished",
+            actor="twilio",
+            customer=attempt["customer"],
+            campaign_id=cid,
+            member_id=mid,
+            script_id=attempt["script_id"],
+            audio_id=attempt["audio_id"],
+            call_attempt_id=attempt["id"],
+            payload={"status": status, "duration_s": duration},
+        )
         if status == "completed":
             # A DTMF choice made during the call has already set the final state.
             conn.execute(
@@ -662,6 +732,15 @@ class CampaignService:
             (kind, campaign_id, member_id, attempt_id, detail, now),
         ).fetchone()
         assert row is not None  # noqa: S101 - INSERT ... RETURNING
+        audit.record(
+            conn,
+            "escalation_created",
+            campaign_id=campaign_id,
+            member_id=member_id,
+            call_attempt_id=attempt_id,
+            escalation_id=row["id"],
+            payload={"kind": kind},
+        )
         log.warning("escalation %s (%s): %s", row["id"], kind, detail)
         return int(row["id"])
 

@@ -277,3 +277,64 @@ ALTER TABLE escalations ADD COLUMN IF NOT EXISTS note TEXT;
 -- One open agent request per member and reason: repeated tool calls return the same row.
 CREATE UNIQUE INDEX IF NOT EXISTS escalations_agent_request_once
     ON escalations (member_id, md5(note)) WHERE kind = 'agent_request' AND resolved_at IS NULL;
+
+-- Phase 10: observability and governance.
+-- Cost of the model calls behind each generated message (Decimal), compliance time, and
+-- the MLflow trace each was made in (NULL when tracing is off).
+ALTER TABLE outreach_scripts ADD COLUMN IF NOT EXISTS cost_usd NUMERIC(12, 6);
+ALTER TABLE outreach_scripts ADD COLUMN IF NOT EXISTS compliance_ms INTEGER;
+ALTER TABLE outreach_scripts ADD COLUMN IF NOT EXISTS trace_id TEXT;
+ALTER TABLE outreach_scripts ADD COLUMN IF NOT EXISTS campaign_id BIGINT;
+ALTER TABLE script_audio ADD COLUMN IF NOT EXISTS trace_id TEXT;
+ALTER TABLE callback_questions ADD COLUMN IF NOT EXISTS cost_usd NUMERIC(12, 6);
+ALTER TABLE callback_questions ADD COLUMN IF NOT EXISTS trace_id TEXT;
+
+-- Append-only audit log: one row per governed event, written in the same transaction as
+-- the change it records. No foreign keys, so audit rows outlive what they describe.
+CREATE TABLE IF NOT EXISTS audit_log (
+    id               BIGSERIAL PRIMARY KEY,
+    -- Real time, even when the campaign runs on the demo clock.
+    at               TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    event            TEXT NOT NULL,
+    actor            TEXT NOT NULL,         -- system, a reviewer's name, mcp, n8n, twilio
+    customer         TEXT,
+    campaign_id      BIGINT,
+    member_id        TEXT,
+    script_id        BIGINT,
+    audio_id         BIGINT,
+    call_attempt_id  BIGINT,
+    escalation_id    BIGINT,
+    trace_id         TEXT,
+    payload          JSONB NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS audit_log_member_idx ON audit_log (member_id, at);
+CREATE INDEX IF NOT EXISTS audit_log_campaign_idx ON audit_log (campaign_id, member_id);
+
+CREATE OR REPLACE FUNCTION audit_log_append_only() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'audit_log is append-only';
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS audit_log_no_change ON audit_log;
+CREATE TRIGGER audit_log_no_change BEFORE UPDATE OR DELETE ON audit_log
+    FOR EACH ROW EXECUTE FUNCTION audit_log_append_only();
+
+-- Latency per stage, one row per measurement (p50/p95 are computed by the dashboard).
+CREATE OR REPLACE VIEW stage_latency AS
+    SELECT 'generate' AS stage, customer, created_at AS at, latency_ms AS ms
+        FROM outreach_scripts
+    UNION ALL
+    SELECT 'compliance', customer, created_at, compliance_ms
+        FROM outreach_scripts WHERE compliance_ms IS NOT NULL
+    UNION ALL
+    SELECT 'tts', s.customer, a.created_at, a.latency_ms
+        FROM script_audio a JOIN outreach_scripts s ON s.id = a.script_id
+    UNION ALL
+    SELECT 'call', k.customer, c.created_at,
+           (EXTRACT(EPOCH FROM c.updated_at - c.created_at) * 1000)::INTEGER
+        FROM call_attempts c JOIN campaigns k ON k.id = c.campaign_id
+        WHERE c.status IN ('completed', 'no-answer', 'busy', 'failed', 'canceled')
+    UNION ALL
+    SELECT 'callback_answer', customer, created_at, latency_ms FROM callback_questions;

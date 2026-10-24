@@ -10,6 +10,7 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
+from caregap import audit, observability
 from caregap.voice.base import TTSProvider
 
 RENDERABLE = frozenset({"compliant", "approved"})
@@ -53,10 +54,16 @@ class AudioRenderer:
                 f"script {script['id']} is {script['status']}; only compliant or approved "
                 "scripts are rendered"
             )
-        started = time.monotonic()
-        audio = self.tts.synthesize(script["script"], voice=voice, lang=lang)
+        tags = {"operation": "render", "customer": script.get("customer"),
+                "member_id": script["member_id"], "script_id": script["id"]}  # fmt: skip
+        with observability.span("tts", "TOOL", root=True, tags=tags) as span:
+            span.set_inputs({"script_id": script["id"], "voice": voice, "lang": lang})
+            started = time.monotonic()
+            audio = self.tts.synthesize(script["script"], voice=voice, lang=lang)
+            latency_ms = round((time.monotonic() - started) * 1000)
+            span.set_attribute("duration_ms", round(audio.duration_s * 1000))
+            trace_id = observability.trace_id()
         overrides = self.overrides_enabled and lang.startswith("en")
-        latency_ms = round((time.monotonic() - started) * 1000)
         self.audio_dir.mkdir(parents=True, exist_ok=True)
         path = self.audio_dir / f"script-{script['id']}-{int(time.time() * 1000)}.wav"
         path.write_bytes(audio.to_wav())
@@ -64,13 +71,21 @@ class AudioRenderer:
             row = conn.execute(
                 """
                 INSERT INTO script_audio (script_id, provider, voice, pronunciation_overrides,
-                                          path, duration_ms, latency_ms)
-                VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *
+                                          path, duration_ms, latency_ms, trace_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
                 """,
                 (script["id"], self.tts.name, voice, overrides, str(path),
-                 round(audio.duration_s * 1000), latency_ms),
+                 round(audio.duration_s * 1000), latency_ms, trace_id),
             ).fetchone()  # fmt: skip
-        assert row is not None  # noqa: S101 - INSERT ... RETURNING always returns a row
+            assert row is not None  # noqa: S101 - INSERT ... RETURNING always returns a row
+            audit.record(
+                conn, "audio_rendered", customer=script.get("customer"),
+                member_id=script["member_id"], script_id=script["id"], audio_id=row["id"],
+                trace_id=trace_id,
+                payload={"provider": self.tts.name, "voice": voice, "lang": lang,
+                         "pronunciation_overrides": overrides,
+                         "duration_ms": row["duration_ms"], "latency_ms": latency_ms},
+            )  # fmt: skip
         return RenderedAudio(**{k: row[k] for k in RenderedAudio.__dataclass_fields__})
 
 

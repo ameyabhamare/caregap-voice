@@ -36,6 +36,9 @@ Agent tools (Phase 9; called by caregap.mcp, rules in caregap.members):
     POST /members/{member_id}/interactions            log a contact with the member
     POST /escalations                                 ask for a human (idempotent while open)
     POST /benefits/search                             benefit lines as written, nearest first
+
+Governance (Phase 10; see caregap.audit):
+    GET  /audit/campaigns/{id}/members/{member_id}    member -> script -> audio -> call -> outcome
 """
 
 from __future__ import annotations
@@ -52,6 +55,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from langchain_core.embeddings import Embeddings
 from pydantic import BaseModel, Field
 
+from caregap import audit, observability
 from caregap.campaign.clock import Clock, build_clock
 from caregap.campaign.service import (
     CampaignService,
@@ -247,6 +251,7 @@ def create_app(
     embeddings: Embeddings | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
+    observability.configure(settings.mlflow_tracing, settings.mlflow_tracking_uri)
     store = store or OutreachStore(settings.database_url)
     # Fail at startup, not mid-campaign, if a config is invalid.
     configs = dict(customers) if customers is not None else load_all(settings.customers_dir)
@@ -405,8 +410,13 @@ def create_app(
         if not open_measures:
             raise HTTPException(409, f"member {req.member_id} has no open gaps for {c.id}")
         profile = c.profile(c.language_for(member.language))
-        outcome = generator_for(profile).generate(member, open_measures)
-        script_id = store.save_script(outcome, req.measurement_year, customer=c.id)
+        tags = {"operation": "create_script", "customer": c.id, "member_id": req.member_id}
+        with observability.span("create_script", "CHAIN", root=True, tags=tags):
+            outcome = generator_for(profile).generate(member, open_measures)
+            trace_id = observability.trace_id()
+        script_id = store.save_script(
+            outcome, req.measurement_year, customer=c.id, trace_id=trace_id
+        )
         return _script_out(store.script(script_id))
 
     @app.get("/scripts/{script_id}")
@@ -557,11 +567,23 @@ def create_app(
     @app.post("/benefits/search")
     def search_benefits(req: BenefitSearch) -> list[BenefitHit]:
         customer(req.customer)
-        vector = embeddings_for("benefit-search").embed_query(req.query)
-        return [
-            BenefitHit(id=c.citation, section=c.section, title=c.title, text=c.text, distance=d)
-            for c, d in chunks.search(req.customer, vector, req.k)
-        ]
+        tags = {"operation": "benefit_search", "customer": req.customer}
+        with observability.span("benefit_search", "RETRIEVER", root=True, tags=tags) as span:
+            span.set_inputs({"query": req.query, "k": req.k})
+            vector = embeddings_for("benefit-search").embed_query(req.query)
+            hits = [
+                BenefitHit(id=c.citation, section=c.section, title=c.title, text=c.text, distance=d)
+                for c, d in chunks.search(req.customer, vector, req.k)
+            ]
+            span.set_outputs([h.id for h in hits])
+        return hits
+
+    @app.get("/audit/campaigns/{campaign_id}/members/{member_id}")
+    def audit_timeline(campaign_id: int, member_id: str) -> dict[str, Any]:
+        t = audit.timeline(cfg.database_url, campaign_id, member_id)
+        if not t:
+            raise HTTPException(404, f"member {member_id} is not in campaign {campaign_id}")
+        return t
 
     @app.post("/notifications", status_code=202)
     def notification_sink(n: Notification) -> dict[str, str]:

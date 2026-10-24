@@ -21,6 +21,7 @@ from typing import Any, Literal, get_args
 import psycopg
 from psycopg.rows import dict_row
 
+from caregap import audit
 from caregap.campaign.clock import Clock
 from caregap.customers import CustomerConfig, customer_for
 from caregap.outreach.compliance import MemberContext
@@ -93,7 +94,15 @@ class MemberService:
                 " source, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
                 (member_id, c.id, channel, outcome, summary, source, self.clock.now()),
             ).fetchone()
-        assert row is not None  # noqa: S101 - INSERT ... RETURNING
+            assert row is not None  # noqa: S101 - INSERT ... RETURNING
+            audit.record(
+                conn,
+                "interaction_logged",
+                actor=source,
+                customer=c.id,
+                member_id=member_id,
+                payload={"interaction_id": row["id"], "channel": channel, "outcome": outcome},
+            )
         return int(row["id"])
 
     def escalate(
@@ -101,7 +110,7 @@ class MemberService:
         campaign_id: int | None = None,
     ) -> tuple[int, bool]:  # fmt: skip
         """Ask for a human. Returns (escalation ID, whether it was created now)."""
-        self._customer(self.store.member(member_id), year)
+        c = self._customer(self.store.member(member_id), year)
         detail = f"agent requested a human (via {source})"
         with psycopg.connect(self.conninfo, row_factory=dict_row) as conn, conn.transaction():
             if (
@@ -121,6 +130,16 @@ class MemberService:
             ).fetchone()
             if row is not None:
                 log.warning("escalation %s (agent_request) for member %s", row["id"], member_id)
+                audit.record(
+                    conn,
+                    "escalation_created",
+                    actor=source,
+                    customer=c.id,
+                    campaign_id=campaign_id,
+                    member_id=member_id,
+                    escalation_id=row["id"],
+                    payload={"kind": "agent_request"},
+                )
                 return int(row["id"]), True
             existing: dict[str, Any] | None = conn.execute(
                 "SELECT id FROM escalations WHERE kind = 'agent_request' AND member_id = %s"

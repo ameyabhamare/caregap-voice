@@ -16,11 +16,13 @@ import re
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Literal
 
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 
+from caregap import observability
 from caregap.customers import CustomerConfig
 from caregap.llm.base import LLMClient
 from caregap.outreach.compliance import normalize
@@ -112,6 +114,8 @@ class Answer:
     prompt_versions: Mapping[str, str] = field(default_factory=dict)
     model: str = ""
     latency_s: float = 0.0
+    #: Every model call behind the answer (route and answer).
+    cost_usd: Decimal = Decimal(0)
 
 
 def token_limits(provider: str) -> dict[str, int]:
@@ -146,45 +150,54 @@ class CallbackAgent:
         language = cfg.language_for(detect_language(question))
         lang = cfg.languages[language]
         versions: dict[str, str] = {}
+        costs: list[Decimal] = []
 
         def done(**kw: object) -> Answer:
             return Answer(
                 customer=customer, question=question, language=language,
                 prompt_versions=versions, model=self.llm.model,
-                latency_s=time.monotonic() - started, **kw,  # type: ignore[arg-type]
+                latency_s=time.monotonic() - started, cost_usd=sum(costs, Decimal(0)),
+                **kw,  # type: ignore[arg-type]
             )  # fmt: skip
 
         route_prompt = self.prompts.get(ROUTE_PROMPT)
         versions[ROUTE_PROMPT] = route_prompt.version
-        reply = self.llm.complete(
+        routed = self.llm.complete(
             route_prompt.render(question=question),
             max_output_tokens=self.route_max_output_tokens,
             purpose=f"callback-route:{customer}",
-        ).text  # fmt: skip
-        route = parse_route(reply)
+        )  # fmt: skip
+        costs.append(routed.cost_usd)
+        route = parse_route(routed.text)
         if route != "benefit":
             text = lang.qa_medical if route == "medical" else lang.qa_handoff
             reason = route if route in ROUTES else "unclear_route"
             return done(route=route, outcome="handoff", reason=reason, text=text)
 
-        docs: list[Document] = self.retriever_for(customer).invoke(question)
-        retrieved = {d.metadata["id"]: d.page_content for d in docs}
+        with observability.span("retrieve", "RETRIEVER") as span:
+            docs: list[Document] = self.retriever_for(customer).invoke(question)
+            retrieved = {d.metadata["id"]: d.page_content for d in docs}
+            span.set_outputs(list(retrieved))
         context = "\n\n".join(f"[{i}] {t}" for i, t in retrieved.items())
         answer_prompt = self.prompts.get(ANSWER_PROMPT)
         versions[ANSWER_PROMPT] = answer_prompt.version
-        draft = self.llm.complete(
+        answered = self.llm.complete(
             answer_prompt.render(
                 plan_name=cfg.plan_name, language_name=LANGUAGE_NAMES[language],
                 context=context, question=question,
             ),
             max_output_tokens=self.max_output_tokens, purpose=f"callback-answer:{customer}",
-        ).text.strip()  # fmt: skip
+        )  # fmt: skip
+        costs.append(answered.cost_usd)
+        draft = answered.text.strip()
         common = {"route": route, "draft": draft, "retrieved": tuple(retrieved),
                   "retrieved_text": retrieved, "citations": tuple(citations(draft))}  # fmt: skip
         if is_not_found(draft):
             return done(outcome="handoff", reason="not_found", text=lang.qa_handoff, **common)
         others = [c.plan_name for c in self.customers.values() if c.id != customer]
-        problems = grounding_problems(draft, retrieved, others)
+        with observability.span("grounding_check", "GUARDRAIL") as span:
+            problems = grounding_problems(draft, retrieved, others)
+            span.set_outputs({"grounded": not problems, "problems": problems})
         if problems:
             return done(outcome="handoff", reason="ungrounded", text=lang.qa_handoff,
                         problems=tuple(problems), **common)  # fmt: skip

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
+from decimal import Decimal
 
+from caregap import observability
 from caregap.llm.base import LLMClient, Message
 from caregap.outreach.compliance import ComplianceResult, MemberContext, check
 from caregap.outreach.profile import OutreachProfile
@@ -20,6 +23,8 @@ class Attempt:
     input_tokens: int
     output_tokens: int
     latency_s: float
+    cost_usd: Decimal = Decimal(0)
+    compliance_s: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -40,6 +45,11 @@ class ScriptOutcome:
     @property
     def final(self) -> ComplianceResult:
         return self.attempts[-1].compliance
+
+    @property
+    def cost_usd(self) -> Decimal:
+        """Every model call behind this message, revisions included."""
+        return sum((a.cost_usd for a in self.attempts), Decimal(0))
 
 
 def clean(text: str) -> str:
@@ -73,6 +83,15 @@ class ScriptGenerator:
         return tuple(ordered[: self.profile.max_gaps_per_script])
 
     def generate(self, member: MemberContext, open_measures: list[str]) -> ScriptOutcome:
+        with observability.span("generate_script", "CHAIN") as span:
+            outcome = self._generate(member, open_measures)
+            span.set_outputs({"status": outcome.status, "script": outcome.script})
+            span.set_attribute("prompt_versions", outcome.prompt_versions)
+            span.set_attribute("attempts", len(outcome.attempts))
+            span.set_attribute("cost_usd", str(outcome.cost_usd))
+        return outcome
+
+    def _generate(self, member: MemberContext, open_measures: list[str]) -> ScriptOutcome:
         measures = self.select_measures(open_measures)
         if not measures:
             raise ValueError(f"member {member.member_id} has no open gaps to script")
@@ -120,10 +139,18 @@ class ScriptGenerator:
             messages, max_output_tokens=self.max_output_tokens, purpose=purpose
         )
         text = clean(c.text)
+        with observability.span("compliance", "GUARDRAIL") as span:
+            started = time.monotonic()
+            result = check(text, self.profile, member)
+            compliance_s = time.monotonic() - started
+            span.set_outputs({"passed": result.passed,
+                              "violations": [v.rule for v in result.violations]})  # fmt: skip
         return Attempt(
             text=text,
-            compliance=check(text, self.profile, member),
+            compliance=result,
             input_tokens=c.input_tokens,
             output_tokens=c.output_tokens,
             latency_s=c.latency_s,
+            cost_usd=c.cost_usd,
+            compliance_s=compliance_s,
         )

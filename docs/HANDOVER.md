@@ -17,15 +17,32 @@ else, read, in order:
 4. `docs/adr/` 0001-0010, especially 0010 (judge, prompt iteration, CI gate).
 
 ## Where things stand
-- Phases 0-9 are approved (Phase 9 on 2026-10-24; gap reasons stay in MCP output).
-- **Next action**: post the Phase 10 plan (observability + governance: MLflow tracing across generation,
-  compliance, TTS and RAG; cost per message, latency p50/p95 per stage, WER; audit log
-  for every generated message with prompt version, model, eval scores and approver;
-  Streamlit dashboard - check BRIEF.md for the exact list and acceptance) and wait for
-  "go". Streamlit is a new dependency: list it as a decision in the plan.
+- Phases 0-9 are approved. Phase 10 (observability + governance) is built and its report
+  is posted (2026-10-24); waiting for the owner's "approved".
+- **After "approved"**: mark Phase 10 approved in PROGRESS.md and this file, then post the
+  Phase 11 plan (live demo mode, optional spend: Cloudflare Tunnel, R2 audio with signed
+  URLs and a 24h lifecycle, a real Twilio trial to verified numbers, a final Claude eval
+  within the budget cap, inbound callback calls deferred from Phase 7 - check BRIEF.md).
+  Every paid service there needs the owner's explicit yes; never ask for tokens in chat.
 - Judge calibration: no criterion reaches kappa 0.4, so `judge.TRUSTED_CRITERIA` is empty
   and judge metrics block neither CI nor prompt promotion (details in PROGRESS.md).
   Never pre-fill, guess or suggest judge labels.
+
+## Phase 10 facts worth knowing
+- `caregap.observability`: root spans only where `root=True` (prepare, create_script,
+  tts, callback_question, benefit_search); model calls/embeddings are child spans only.
+  `MLFLOW_TRACING` (Settings default false; compose and .env true). tests/conftest.py
+  forces it off because `make` exports .env. Experiment `caregap-traces`.
+- `caregap.audit`: `audit_log` (append-only trigger, no FKs, `at` = DB clock_timestamp).
+  `audit.record(conn, event, actor=..., payload=..., **refs)` with the change's own
+  connection. `timeline(conninfo, campaign_id, member_id)`; `make trace-member`.
+- Costs: `Usage.actual_usd` from the ledger -> `Completion.cost_usd` ->
+  `Attempt.cost_usd`/`ScriptOutcome.cost_usd` -> `outreach_scripts.cost_usd`;
+  `Answer.cost_usd` -> `callback_questions.cost_usd`. `stage_latency` view for p50/p95.
+- Dashboard: `src/caregap/dashboard/app.py` (Streamlit 1.65.0, `dashboard` group, not in
+  the core image), queries in `data.py`; AppTest smoke test in
+  tests/integration/test_dashboard.py.
+- The core image was rebuilt with Phases 9-10 on 2026-10-24; dev DB has the schema.
 
 ## Phase 9 facts worth knowing
 - `caregap.mcp` (stdio, `mcp` SDK 2.3.0: `MCPServer`, in-process `Client(server)` for

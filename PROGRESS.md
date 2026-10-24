@@ -13,7 +13,7 @@
 | 6 | Multi-customer config | Approved |
 | 7 | RAG callback agent + hallucination analysis | Approved |
 | 8 | LLM-as-a-Judge, prompt iteration, CI gate | Approved |
-| 9 | MCP server | Built, report posted |
+| 9 | MCP server | Approved |
 | 10 | Observability + governance | Not started |
 | 11 | Live demo mode (optional spend) | Not started |
 | 12 | Docs and handoff | Not started |
@@ -127,11 +127,10 @@
       stdio server against a running core service
 - [x] Live check: real member, real embeddings, escalation delivered by n8n (IDs only)
 - [x] docs/mcp.md (Claude Desktop setup), `make mcp-config`, ADR 0011
-- [ ] Owner: connect Claude Desktop, inspect a member, trigger an escalation
-- [ ] Approved
+- [x] Phase report posted, approved (2026-10-24); gap reasons stay in MCP output (default)
 
 ## Resume here (hand-off between sessions)
-Status: Phases 0-8 approved; Phase 9 built, report posted; waiting for "approved".
+Status: Phases 0-9 approved. Next: post the Phase 10 plan (observability + governance) and wait for "go".
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`,

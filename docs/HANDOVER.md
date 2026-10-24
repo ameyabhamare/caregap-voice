@@ -17,12 +17,8 @@ else, read, in order:
 4. `docs/adr/` 0001-0010, especially 0010 (judge, prompt iteration, CI gate).
 
 ## Where things stand
-- Phases 0-8 are approved. Phase 9 (MCP server) is built and its report is posted
-  (2026-10-24); waiting for the owner's "approved". They are also asked to run the
-  acceptance check in Claude Desktop (docs/mcp.md section 3); if they report a problem,
-  fix it before anything else.
-- **After "approved"**: mark Phase 9 approved in PROGRESS.md and this file, then post the
-  Phase 10 plan (observability + governance: MLflow tracing across generation,
+- Phases 0-9 are approved (Phase 9 on 2026-10-24; gap reasons stay in MCP output).
+- **Next action**: post the Phase 10 plan (observability + governance: MLflow tracing across generation,
   compliance, TTS and RAG; cost per message, latency p50/p95 per stage, WER; audit log
   for every generated message with prompt version, model, eval scores and approver;
   Streamlit dashboard - check BRIEF.md for the exact list and acceptance) and wait for

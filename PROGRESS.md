@@ -14,7 +14,7 @@
 | 7 | RAG callback agent + hallucination analysis | Approved |
 | 8 | LLM-as-a-Judge, prompt iteration, CI gate | Approved |
 | 9 | MCP server | Approved |
-| 10 | Observability + governance | Built, report posted |
+| 10 | Observability + governance | Approved |
 | 11 | Live demo mode (optional spend) | Not started |
 | 12 | Docs and handoff | Not started |
 
@@ -145,10 +145,10 @@
 - [x] Live check: core image rebuilt, `make run-campaign` (campaign 5, 20 Sunrise members)
       fully traceable: script (prompt v3, grade 5.5) -> approval -> audio -> no-answer ->
       retry -> DTMF 0 -> escalation; MLflow traces linked; dashboard renders every tab
-- [ ] Approved
+- [x] Phase report posted, approved (2026-10-24)
 
 ## Resume here (hand-off between sessions)
-Status: Phases 0-9 approved; Phase 10 built, report posted; waiting for "approved".
+Status: Phases 0-10 approved. Next: post the Phase 11 plan (live demo mode) and wait for "go".
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`,

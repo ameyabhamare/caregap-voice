@@ -17,10 +17,8 @@ else, read, in order:
 4. `docs/adr/` 0001-0010, especially 0010 (judge, prompt iteration, CI gate).
 
 ## Where things stand
-- Phases 0-9 are approved. Phase 10 (observability + governance) is built and its report
-  is posted (2026-10-24); waiting for the owner's "approved".
-- **After "approved"**: mark Phase 10 approved in PROGRESS.md and this file, then post the
-  Phase 11 plan (live demo mode, optional spend: Cloudflare Tunnel, R2 audio with signed
+- Phases 0-10 are approved (Phase 10 on 2026-10-24).
+- **Next action**: post the Phase 11 plan (live demo mode, optional spend: Cloudflare Tunnel, R2 audio with signed
   URLs and a 24h lifecycle, a real Twilio trial to verified numbers, a final Claude eval
   within the budget cap, inbound callback calls deferred from Phase 7 - check BRIEF.md).
   Every paid service there needs the owner's explicit yes; never ask for tokens in chat.

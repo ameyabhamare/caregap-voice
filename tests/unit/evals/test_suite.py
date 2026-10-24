@@ -30,7 +30,18 @@ def test_promote_only_on_improvement_without_regressions() -> None:
     d = decide(big_dip, BASE)
     assert not d.promote and d.improved and d.regressions == ("reading_ok_rate 80.0% -> 70.0%",)
     more_advice = {**better, "judge_no_medical_advice_fails": 3}
-    assert "medical-advice" in decide(more_advice, BASE).regressions[0]
+    assert decide(more_advice, BASE).promote  # judge not calibrated: reported, not blocking
+    trusted = decide(more_advice, BASE, trusted=("no_medical_advice",))
+    assert "medical-advice" in trusted.regressions[0] and not trusted.promote
+
+
+def test_uncalibrated_judge_metrics_are_reported_but_never_block() -> None:
+    better = {**BASE, "final_pass_rate": 0.70, "judge_clarity_pass_rate": 0.50}
+    d = decide(better, BASE)
+    assert d.promote and d.regressions == ()
+    assert round(d.deltas["judge_clarity_pass_rate"], 2) == -0.40
+    blocked = decide(better, BASE, trusted=("clarity",))
+    assert blocked.regressions == ("judge_clarity_pass_rate 90.0% -> 50.0%",)
 
 
 def outcome(script: str, lang: str = "en") -> ScriptOutcome:

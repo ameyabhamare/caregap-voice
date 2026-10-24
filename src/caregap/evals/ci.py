@@ -32,7 +32,7 @@ from caregap.config import Settings, get_settings
 from caregap.customers import CustomerConfig, load_all
 from caregap.evals import rag as rag_eval
 from caregap.evals import rules
-from caregap.evals.judge import Judge
+from caregap.evals.judge import TRUSTED_CRITERIA, Judge
 from caregap.evals.suite import CONFIGS, run_config
 from caregap.outreach.compliance import MemberContext
 from caregap.outreach.generate import ScriptGenerator
@@ -43,9 +43,6 @@ CASES = FIXTURES / "cases"
 THRESHOLDS = FIXTURES / "thresholds.json"
 REPORTS = Path("reports")
 MARGIN = 0.05
-#: Judge criteria gate CI only once their agreement with owner labels is good
-#: (kappa >= 0.4, make judge-agreement). Until then they are reported, not gated.
-GATED_JUDGE_CRITERIA: tuple[str, ...] = ()
 
 
 class FixtureMembers:
@@ -140,7 +137,7 @@ def derive_thresholds(metrics: Mapping[str, Mapping[str, float]]) -> dict[str, d
         gates: dict[str, Any] = {}
         if key.startswith("scripts:"):
             gates["final_pass_rate"] = {"min": round(max(0.0, m["final_pass_rate"] - MARGIN), 3)}
-            for c in GATED_JUDGE_CRITERIA:
+            for c in TRUSTED_CRITERIA:  # judge criteria only once calibrated
                 k = f"judge_{c}_pass_rate"
                 gates[k] = {"min": round(max(0.0, m[k] - MARGIN), 3)}
         else:

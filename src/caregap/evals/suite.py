@@ -7,9 +7,11 @@ Per configuration (Sunrise, Sunrise Spanish-only, Horizon) it generates scripts 
 rule eval's sampling and flow, then judges every final script (clarity, tone, no medical
 advice) and computes reading level. The parent run logs the means over configurations.
 
-Promotion rule: the mean final compliance pass rate must improve, no guard metric may
-drop by more than ``GUARD_TOLERANCE``, and judged medical-advice failures may not
-increase. A candidate that fails is not promoted and its regressions are listed.
+Promotion rule: the mean final compliance pass rate must improve and no guard metric may
+drop by more than ``GUARD_TOLERANCE``. Judge metrics (pass rates, medical-advice
+failures) only block for criteria in ``judge.TRUSTED_CRITERIA``, i.e. calibrated against
+owner labels; otherwise they are reported only. A candidate that fails is not promoted
+and its regressions are listed.
 
 A configuration whose inputs did not change since an earlier run (same prompt versions
 for that customer, judge version, model, sample, compliance code and customer config) is
@@ -29,7 +31,7 @@ from typing import Any
 
 from caregap.customers import CustomerConfig
 from caregap.evals import rules
-from caregap.evals.judge import CRITERIA, Judge, Verdict
+from caregap.evals.judge import CRITERIA, TRUSTED_CRITERIA, Judge, Verdict
 from caregap.evals.readability import MAX_GRADE, fk_grade
 from caregap.outreach.generate import ScriptGenerator, ScriptOutcome
 
@@ -121,17 +123,28 @@ class Decision:
     deltas: dict[str, float]
 
 
-def decide(candidate: Mapping[str, float], baseline: Mapping[str, float]) -> Decision:
+def decide(
+    candidate: Mapping[str, float],
+    baseline: Mapping[str, float],
+    trusted: Sequence[str] = TRUSTED_CRITERIA,
+) -> Decision:
+    """Judge metrics block a promotion only for ``trusted`` (calibrated) criteria; the
+    others are still compared and reported in ``deltas``."""
     deltas = {k: candidate[k] - baseline[k] for k in (PRIMARY, *GUARDS)
               if k in candidate and k in baseline}  # fmt: skip
+    blocking = [
+        k for k in GUARDS
+        if not k.startswith("judge_") or k.removeprefix("judge_").removesuffix("_pass_rate")
+        in trusted
+    ]  # fmt: skip
     regressions = [
         f"{k} {baseline[k]:.1%} -> {candidate[k]:.1%}"
-        for k in GUARDS
+        for k in blocking
         if k in deltas and deltas[k] < -GUARD_TOLERANCE
     ]
     med_b = baseline.get("judge_no_medical_advice_fails", 0)
     med_c = candidate.get("judge_no_medical_advice_fails", 0)
-    if med_c > med_b:
+    if "no_medical_advice" in trusted and med_c > med_b:
         regressions.append(f"judged medical-advice failures {med_b:.0f} -> {med_c:.0f}")
     improved = deltas.get(PRIMARY, 0.0) > 0
     return Decision(improved and not regressions, improved, tuple(regressions), deltas)

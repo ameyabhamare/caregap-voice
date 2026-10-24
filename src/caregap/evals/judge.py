@@ -16,6 +16,10 @@ from caregap.prompts import PromptStore
 
 JUDGE_PROMPT = "outreach-judge"
 CRITERIA = ("clarity", "tone", "no_medical_advice")
+#: Criteria whose agreement with owner labels is good enough (Cohen's kappa >= 0.4,
+#: make judge-agreement) to block a prompt promotion or fail CI. The others are reported
+#: only. Owner calibration 2026-10-24 (MLflow judge-calibration 8c7d1295): none qualify.
+TRUSTED_CRITERIA: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

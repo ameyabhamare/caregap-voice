@@ -209,7 +209,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $json.twilio.url }}",
+        "url": "={{ $('Claim call').item.json.twilio.url }}",
         "options": {
           "timeout": 30000
         },
@@ -218,7 +218,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "={{ $json.twilio.authorization }}"
+              "value": "={{ $('Claim call').item.json.twilio.authorization }}"
             }
           ]
         },
@@ -228,27 +228,31 @@
           "parameters": [
             {
               "name": "To",
-              "value": "={{ $json.twilio.form.To }}"
+              "value": "={{ $('Claim call').item.json.twilio.form.To }}"
             },
             {
               "name": "From",
-              "value": "={{ $json.twilio.form.From }}"
+              "value": "={{ $('Claim call').item.json.twilio.form.From }}"
             },
             {
               "name": "Url",
-              "value": "={{ $json.twilio.form.Url }}"
+              "value": "={{ $('Claim call').item.json.twilio.form.Url }}"
             },
             {
               "name": "Method",
-              "value": "={{ $json.twilio.form.Method }}"
+              "value": "={{ $('Claim call').item.json.twilio.form.Method }}"
             },
             {
               "name": "StatusCallback",
-              "value": "={{ $json.twilio.form.StatusCallback }}"
+              "value": "={{ $('Claim call').item.json.twilio.form.StatusCallback }}"
             },
             {
               "name": "StatusCallbackMethod",
-              "value": "={{ $json.twilio.form.StatusCallbackMethod }}"
+              "value": "={{ $('Claim call').item.json.twilio.form.StatusCallbackMethod }}"
+            },
+            {
+              "name": "Record",
+              "value": "={{ $('Claim call').item.json.twilio.form.Record ?? 'false' }}"
             }
           ]
         }
@@ -258,7 +262,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1340,
+        2000,
         200
       ],
       "retryOnFail": true,
@@ -302,7 +306,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1580,
+        2240,
         120
       ]
     },
@@ -322,9 +326,100 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1580,
+        2240,
         320
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "800ac3eb-a14c-5af1-af26-4e06963c6f9c",
+              "leftValue": "={{ !!$json.upload }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7aeed749-675b-5b17-b081-ba675c1b833d",
+      "name": "Upload audio first?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1340,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.CORE_URL }}/scripts/{{ $json.upload.script_id }}/audio",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "2b0beddb-4646-5e0c-b6a2-6b255b10ba77",
+      "name": "Fetch audio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        340
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $('Claim call').item.json.upload.put_url }}",
+        "options": {
+          "timeout": 60000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "={{ $('Claim call').item.json.upload.content_type }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data"
+      },
+      "id": "df8c48af-6a27-5d7d-b124-460c432606f5",
+      "name": "Upload audio (R2)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        340
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
     }
   ],
   "connections": {
@@ -424,7 +519,7 @@
       "main": [
         [
           {
-            "node": "Place call (Twilio)",
+            "node": "Upload audio first?",
             "type": "main",
             "index": 0
           }
@@ -436,6 +531,60 @@
         [
           {
             "node": "Record dispatched",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record dispatch failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload audio first?": {
+      "main": [
+        [
+          {
+            "node": "Fetch audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Place call (Twilio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch audio": {
+      "main": [
+        [
+          {
+            "node": "Upload audio (R2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record dispatch failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload audio (R2)": {
+      "main": [
+        [
+          {
+            "node": "Place call (Twilio)",
             "type": "main",
             "index": 0
           }

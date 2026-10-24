@@ -21,9 +21,12 @@ ALLOWED_NODES = {
     "n8n-nodes-base.if",
     "n8n-nodes-base.respondToWebhook",
 }
-# HTTP targets: the core service, or a URL taken from a core response.
+# HTTP targets: the core service, or a URL taken from a core response (the Twilio request
+# and the signed audio upload URL from "Claim call", the notification webhook).
 ALLOWED_URL = re.compile(
-    r"^=\{\{ \$env\.CORE_URL \}\}/|^=\{\{ \$json\.twilio\.url \}\}$|^=\{\{ \$\('Get outbox'\)"
+    r"^=\{\{ \$env\.CORE_URL \}\}/"
+    r"|^=\{\{ \$\('Claim call'\)\.item\.json\.(twilio\.url|upload\.put_url) \}\}$"
+    r"|^=\{\{ \$\('Get outbox'\)"
 )
 
 

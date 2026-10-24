@@ -8,6 +8,11 @@ auth and a form body; signed (``X-Twilio-Signature``) form posts to the TwiML ``
 downloads the ``<Play>`` audio and checks it is a WAV, so the delivery path is exercised
 for real.
 
+It also stands in for an R2 bucket (``PUT``/``GET /r2/{bucket}/{key}``): objects live in
+memory and every request must carry a valid, unexpired presigned URL for the configured
+R2 credentials, so the live-mode audio path (n8n uploads, Twilio downloads) is exercised
+locally without Cloudflare.
+
 Outcomes are deterministic: a hash of the number and how many calls it has had picks
 from a fixed distribution (see ``OUTCOMES``). Tests and demos can script the outcomes for
 a number with ``PUT /mock/numbers/{to}``; ``POST /mock/reset`` clears all state.
@@ -16,6 +21,7 @@ a number with ``PUT /mock/numbers/{to}``; ``POST /mock/reset`` clears all state.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import io
 import logging
 import math
@@ -28,14 +34,16 @@ import wave
 import xml.etree.ElementTree as ET
 from collections import Counter, deque
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qsl
 
 import httpx
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from caregap.storage.r2 import presign
 from caregap.telephony.twilio import basic_auth, signature
 
 log = logging.getLogger(__name__)
@@ -71,6 +79,27 @@ def _error(status: int, code: int, message: str) -> JSONResponse:
 def wav_seconds(data: bytes) -> float:
     with wave.open(io.BytesIO(data)) as w:
         return float(w.getnframes() / w.getframerate())
+
+
+def check_presigned(
+    method: str, url: str, query: dict[str, str], *, access_key: str, secret_key: str,
+    now: datetime,
+) -> str | None:  # fmt: skip
+    """Why a presigned request is refused (None if it is valid and unexpired)."""
+    try:
+        signed_at = datetime.strptime(query["X-Amz-Date"], "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC)
+        expires = int(query["X-Amz-Expires"])
+        region = query["X-Amz-Credential"].split("/")[2]
+        expected = presign(method, url, access_key=access_key, secret_key=secret_key,
+                           region=region, expires_s=expires, now=signed_at)  # fmt: skip
+    except (KeyError, ValueError, IndexError):
+        return "malformed presigned URL"
+    if not hmac.compare_digest(expected.rsplit("X-Amz-Signature=", 1)[1],
+                               query.get("X-Amz-Signature", "")):  # fmt: skip
+        return "SignatureDoesNotMatch"
+    if now > signed_at + timedelta(seconds=expires):
+        return "Request has expired"
+    return None
 
 
 class Outcomes(BaseModel):
@@ -167,6 +196,7 @@ def create_app(
     auth_token: str | None = None,
     delay_s: float | None = None,
     http: httpx.Client | None = None,
+    r2_credentials: tuple[str, str] | None = None,
 ) -> FastAPI:
     from caregap.config import get_settings
 
@@ -234,6 +264,34 @@ def create_app(
     @app.post("/mock/reset")
     def reset() -> dict[str, str]:
         mock.reset()
+        objects.clear()
         return {"status": "ok"}
+
+    # --- fake R2 ---------------------------------------------------------------------
+    objects: dict[str, bytes] = {}
+    r2_key, r2_secret = r2_credentials or (
+        settings.r2_access_key_id,
+        settings.r2_secret_access_key.get_secret_value(),
+    )
+
+    def r2_check(method: str, request: Request) -> None:
+        url = f"{request.url.scheme}://{request.headers['host']}{request.url.path}"
+        why = check_presigned(method, url, dict(request.query_params), access_key=r2_key,
+                              secret_key=r2_secret, now=datetime.now(UTC))  # fmt: skip
+        if why:
+            raise HTTPException(403, why)
+
+    @app.put("/r2/{bucket}/{key:path}")
+    async def r2_put(bucket: str, key: str, request: Request) -> Response:
+        r2_check("PUT", request)
+        objects[f"{bucket}/{key}"] = await request.body()
+        return Response(status_code=200)
+
+    @app.get("/r2/{bucket}/{key:path}")
+    def r2_get(bucket: str, key: str, request: Request) -> Response:
+        r2_check("GET", request)
+        if f"{bucket}/{key}" not in objects:
+            raise HTTPException(404, "NoSuchKey")
+        return Response(objects[f"{bucket}/{key}"], media_type="audio/wav")
 
     return app

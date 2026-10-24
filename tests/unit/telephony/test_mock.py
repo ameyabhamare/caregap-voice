@@ -141,3 +141,24 @@ def test_reset_clears_calls_and_counters() -> None:
     c.post(URL, data=FORM, headers=AUTH)
     if first != "api-error":
         assert c.get("/mock/calls").json()[0]["outcome"] == first
+
+
+def test_fake_r2_accepts_only_valid_unexpired_presigned_urls() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from caregap.storage.r2 import R2Bucket
+
+    c = TestClient(create_app(account_sid=SID, auth_token=TOKEN, delay_s=0,
+                              r2_credentials=("ak", "sk")))  # fmt: skip
+    bucket = R2Bucket("http://testserver/r2", "audio", "ak", "sk")
+    put = bucket.put_url("calls/1.wav", expires_s=60)
+    assert c.put(put, content=b"RIFF....").status_code == 200
+    got = c.get(bucket.get_url("calls/1.wav", expires_s=60))
+    assert (got.status_code, got.content) == (200, b"RIFF....")
+    assert c.get(put).status_code == 403  # a PUT URL cannot be used to read
+    wrong = R2Bucket("http://testserver/r2", "audio", "ak", "other-secret")
+    assert c.get(wrong.get_url("calls/1.wav", expires_s=60)).status_code == 403
+    old = bucket.get_url("calls/1.wav", expires_s=60,
+                         now=datetime.now(UTC) - timedelta(minutes=5))  # fmt: skip
+    assert c.get(old).json()["detail"] == "Request has expired"
+    assert c.get(bucket.get_url("calls/2.wav", expires_s=60)).status_code == 404

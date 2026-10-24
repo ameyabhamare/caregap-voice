@@ -215,6 +215,10 @@ document, one adds "no copay"); the Phase 8 judge is meant to catch those.
   advice (pass/fail); reading level is computed (Flesch-Kincaid, grade 8 or below).
   Calibration: the owner labels 50 scripts ([fixtures/judge/calibration.csv](fixtures/judge/calibration.csv),
   `make label-judge`); `make judge-agreement` reports Cohen's kappa per criterion.
+  Result against the owner's 50 labels: clarity 66% agreement (kappa -0.08; the judge
+  missed all 15 scripts the owner failed), tone 98% (kappa 0; the judge never fails
+  tone), no medical advice 100% (the owner passed all 50). The local 3B judge is
+  reported, not trusted: no judge criterion gates CI.
 - **Prompt iteration** (`make prompts-candidate`, `make eval ALIAS=candidate`): every
   version is one MLflow run (`eval-suite`) over Sunrise, Sunrise Spanish and Horizon,
   and is promoted only if mean final compliance improves with no guard regression.

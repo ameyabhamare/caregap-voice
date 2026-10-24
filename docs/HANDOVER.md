@@ -19,7 +19,12 @@ else, read, in order:
 ## Where things stand
 - Phases 0-7 are approved. Phase 8 (LLM-as-a-Judge, prompt iteration, CI gate) is built,
   its report is posted, CI is green on the branch (GitHub Actions runs 4 and 5).
-- **Waiting on the owner**: they are labeling the 50 scripts in
+- **Update 2026-10-24**: the owner labeled all 50 scripts (committed). Agreement (MLflow
+  judge-calibration 8c7d1295): clarity 66%, kappa -0.08; tone 98%, kappa 0.00; no medical
+  advice 100%, kappa n/a. No criterion reaches 0.4, so `GATED_JUDGE_CRITERIA` stays empty
+  and no re-record is needed. Remaining: the owner's answer on the promotion-rule
+  question and "approved". The steps below are kept for reference.
+- **Was waiting on the owner**: they are labeling the 50 scripts in
   `fixtures/judge/calibration.csv` (columns `clarity`, `tone`, `no_medical_advice`, each
   `y` = pass or `n` = fail; `notes` optional). They may send labels back as:
   a. an attached CSV - copy it over `fixtures/judge/calibration.csv` (check: 50 rows, same

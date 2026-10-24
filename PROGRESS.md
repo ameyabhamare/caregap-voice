@@ -107,7 +107,9 @@
 ## Phase 8: LLM-as-a-Judge, prompt iteration, CI gate
 - [x] Judge (clarity, tone, no medical advice; qwen2.5:3b) + computed reading level
 - [x] Calibration set (50 scripts, empty labels), `make label-judge`, `make judge-agreement`
-- [ ] Owner labels -> agreement report (kappa per criterion) -> decide which judge criteria gate
+- [x] Owner labels (50/50) -> agreement (MLflow judge-calibration 8c7d1295): clarity 66%,
+      kappa -0.08 (judge missed all 15 owner fails); tone 98%, kappa 0.00 (judge never
+      fails); no medical advice 100%, kappa n/a (owner passed all 50). No criterion gates CI.
 - [x] `make eval` suite with candidate alias, promotion rule, cached configurations
 - [x] Iterations: v2 rejected, v3 promoted (Sunrise final 68% -> 99%), v4 rejected
 - [x] Record/replay (LLM_FIXTURES), `make record-fixtures`, `make eval-ci`, thresholds
@@ -201,6 +203,7 @@ Environment quirks seen in the cloud container:
 | 2026-10-23 | Promotion rule applied as agreed even when the judge looked wrong (v2) | Changing a rule after seeing results would make the history meaningless; flagged for the owner. |
 | 2026-10-23 | outreach-script v3 (no health claims) promoted; v2 and v4 ("three sentences") rejected | Measured: v3 +10.3 points mean final pass; v4 on top of v3 -2.3. |
 | 2026-10-23 | CI replays recorded responses keyed by request hash; missing recording fails | CI never calls a model; prompt or request changes force a reviewed re-record. |
+| 2026-10-24 | No judge criterion gates CI (none reaches kappa 0.4) | Owner calibration: qwen2.5:3b judge agrees no better than chance on clarity and never fails tone. |
 | 2026-10-22 | HAPI default (distroless) image, using its bundled `HealthCheck` probe | The `-tomcat` variant cannot unpack its WAR as non-root and took more than 14 min without ever becoming healthy; the default image is healthy in about 35 s. |
 
 ## Open questions

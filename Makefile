@@ -16,7 +16,7 @@ help: ## List targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(firstword $(MAKEFILE_LIST)) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 # --- setup -------------------------------------------------------------------
-.PHONY: install validate-config benefits-pdf ingest-benefits
+.PHONY: install validate-config benefits-pdf ingest-benefits db-schema mcp mcp-config
 install: ## Install Python deps and pre-commit hooks
 	uv sync
 	$(UV) pre-commit install
@@ -147,6 +147,15 @@ eval-rules: ## Compliance eval on N members of CUSTOMER (default sunrise; LANGUA
 
 serve: ## Run the core service API on http://localhost:8000
 	$(UV) uvicorn --factory caregap.api.app:create_app --host 127.0.0.1 --port 8000
+
+db-schema: ## Apply the idempotent schema to DATABASE_URL (after a schema change on old volumes)
+	$(UV) python -m caregap.db
+
+mcp: ## Run the MCP server on stdio (Claude Desktop starts it itself; see docs/mcp.md)
+	$(UV) python -m caregap.mcp
+
+mcp-config: ## Print the Claude Desktop config entry for this checkout
+	@$(UV) python -m caregap.mcp.desktop_config
 
 benefits-pdf: ## Render benefits/*.md to the committed PDFs (dev time)
 	$(UV) python -m caregap.rag.documents build

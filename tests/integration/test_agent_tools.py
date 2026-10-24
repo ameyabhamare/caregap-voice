@@ -1,14 +1,26 @@
-"""Agent tools (Phase 9): the core endpoints behind the MCP server."""
+"""Agent tools (Phase 9): the core endpoints behind the MCP server, and the MCP server
+itself over stdio against a running core service, as Claude Desktop would launch it."""
 
 from __future__ import annotations
 
+import asyncio
+import os
+import socket
+import sys
+import threading
+import time
+from collections.abc import Iterator
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 import psycopg
 import pytest
+import uvicorn
 from fastapi.testclient import TestClient
+from mcp import Client, StdioServerParameters
+from mcp.types import CallToolResult
 
 from caregap.api.app import create_app
 from caregap.campaign.clock import FixedClock
@@ -23,6 +35,8 @@ from tests.integration.test_callbacks import BagOfWords
 from tests.unit.llm.fakes import FakeProvider
 
 pytestmark = pytest.mark.integration
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture
@@ -129,3 +143,52 @@ def test_benefit_search_returns_lines_as_written_within_one_plan(db: str) -> Non
     text = ChunkStore(db).all_text("horizon")
     assert all(h["text"] in text for h in hits)
     assert c.post("/benefits/search", json={"customer": "acme", "query": "x"}).status_code == 404
+
+
+# --- the MCP server over stdio ---------------------------------------------------------
+
+
+@pytest.fixture
+def core_url(db: str) -> Iterator[str]:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(make_app(db), port=port, log_level="warning"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 10
+    while not server.started:
+        assert time.monotonic() < deadline, "core service did not start"
+        time.sleep(0.05)
+    yield f"http://127.0.0.1:{port}"
+    server.should_exit = True
+    thread.join(5)
+
+
+def test_stdio_server_inspects_a_member_and_escalates(db: str, core_url: str) -> None:
+    params = StdioServerParameters(
+        command=sys.executable, args=["-m", "caregap.mcp"], cwd=ROOT,
+        env={**os.environ, "CORE_URL": core_url},
+    )  # fmt: skip
+
+    async def session() -> tuple[set[str], CallToolResult, CallToolResult, CallToolResult]:
+        async with Client(params) as c:
+            tools = {t.name for t in (await c.list_tools()).tools}
+            member = await c.call_tool("get_member_gaps", {"member_id": "m-old"})
+            ask = {"member_id": "m-old", "reason": "Asked for a person."}
+            esc = await c.call_tool("escalate_to_human", ask)
+            missing = await c.call_tool("get_member_gaps", {"member_id": "nobody"})
+            return tools, member, esc, missing
+
+    tools, member, esc, missing = asyncio.run(session())
+    assert tools == {"get_member_gaps", "search_benefits", "log_interaction", "escalate_to_human"}
+    assert not member.is_error and member.structured_content is not None
+    assert member.structured_content["customer"] == "sunrise"
+    assert esc.structured_content is not None and esc.structured_content["created"] is True
+    assert missing.is_error
+    with psycopg.connect(db) as conn:
+        row = conn.execute(
+            "SELECT kind, member_id, note FROM escalations WHERE id = %s",
+            (esc.structured_content["escalation_id"],),
+        ).fetchone()
+    assert row == ("agent_request", "m-old", "Asked for a person.")

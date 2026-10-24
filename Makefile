@@ -151,6 +151,28 @@ serve: ## Run the core service API on http://localhost:8000
 db-schema: ## Apply the idempotent schema to DATABASE_URL (after a schema change on old volumes)
 	$(UV) python -m caregap.db
 
+.PHONY: live-up live-down live-call live-recording
+live-up: ## Live demo: start the tunnel + edge filter, write LIVE_WEBHOOK_URL, restart core
+	$(COMPOSE) --profile live up -d --wait edge tunnel
+	@for i in $$(seq 1 30); do \
+		$(COMPOSE) logs tunnel 2>&1 | $(UV) python -m caregap.campaign.live tunnel && break; \
+		sleep 2; done
+	@# A new make reads the updated .env (this one exported the old values).
+	@$(MAKE) --no-print-directory live-restart-core
+
+.PHONY: live-restart-core
+live-restart-core:
+	$(COMPOSE) up -d --wait core
+
+live-down: ## Live demo: stop the tunnel and edge filter
+	$(COMPOSE) --profile live stop tunnel edge
+
+live-call: ## Live demo: one real call to LIVE_DEMO_NUMBER after you approve the script
+	$(UV) python -m caregap.campaign.live call --customer $(CUSTOMER)
+
+live-recording: ## Live demo: download the Twilio recording of CAMPAIGN's call to docs/demo/
+	$(UV) python -m caregap.campaign.live recording --campaign $(CAMPAIGN)
+
 .PHONY: dashboard
 dashboard: ## Streamlit dashboard on http://localhost:8501: funnel, evals, cost, latency, traces
 	$(UV) streamlit run src/caregap/dashboard/app.py --server.address 127.0.0.1 \

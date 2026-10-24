@@ -182,6 +182,33 @@ services:
       timeout: 5s
       retries: 30
 
+  # Live demo mode only (`make live-up`; docs/live-demo.md). The tunnel publishes the edge
+  # filter, which forwards nothing but Twilio's webhook to n8n.
+  edge:
+    image: caregap-core:local
+    profiles: [live]
+    depends_on:
+      n8n:
+        condition: service_healthy
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    command: ["uvicorn", "--factory", "caregap.telephony.edge:create_app", "--host", "0.0.0.0", "--port", "8200"]
+    environment:
+      N8N_WEBHOOK_URL: http://n8n:5678/webhook/twilio-events
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8200/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # A Cloudflare quick tunnel (no account; a new trycloudflare.com URL each start).
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.0
+    profiles: [live]
+    depends_on:
+      edge:
+        condition: service_healthy
+    command: ["tunnel", "--no-autoupdate", "--url", "http://edge:8200"]
+
   # Orchestration only: schedules, retries of HTTP calls, routing, notifications.
   # Workflows live in n8n/workflows and are loaded with `make n8n-import`.
   n8n:

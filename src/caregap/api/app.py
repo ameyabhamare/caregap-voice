@@ -390,12 +390,13 @@ def create_app(
         return JSONResponse({"detail": str(exc)}, status_code=402)
 
     @app.get("/health")
-    def health() -> dict[str, str]:
+    def health() -> dict[str, str | bool]:
         return {
             "status": "ok",
             "provider": client.provider.name,
             "model": client.model,
             "clock": campaigns.clock.now().isoformat(),
+            "live": settings.live_mode,
         }
 
     @app.get("/members/{member_id}/gaps")

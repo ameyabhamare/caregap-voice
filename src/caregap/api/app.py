@@ -30,6 +30,12 @@ Campaigns (Phase 5; called by n8n, see caregap.campaign.service):
 
 Callback Q&A (Phase 7; see caregap.rag.agent):
     POST /callbacks/questions                         answer from the plan's benefits, or hand off
+
+Agent tools (Phase 9; called by caregap.mcp, rules in caregap.members):
+    GET  /members/{member_id}?year=2025               plan, allowed fields and the plan's gaps
+    POST /members/{member_id}/interactions            log a contact with the member
+    POST /escalations                                 ask for a human (idempotent while open)
+    POST /benefits/search                             benefit lines as written, nearest first
 """
 
 from __future__ import annotations
@@ -57,6 +63,7 @@ from caregap.config import Settings, get_settings
 from caregap.cost import BudgetExceededError
 from caregap.customers import LANGUAGES, CustomerConfig, customer_for, load_all
 from caregap.llm.base import LLMClient, ProviderError
+from caregap.members import Channel, MemberService, NoCustomerError, Outcome
 from caregap.outreach.generate import ScriptGenerator
 from caregap.outreach.profile import OutreachProfile
 from caregap.outreach.store import NotFoundError, OutreachStore, ReviewConflictError
@@ -181,6 +188,45 @@ class CallbackAnswer(BaseModel):
     escalation_id: int | None
 
 
+class MemberOut(BaseModel):
+    member_id: str
+    customer: str
+    plan_name: str
+    language: str
+    fields: dict[str, str | int | date | None]
+    gaps: list[GapOut]
+
+
+class InteractionRequest(BaseModel):
+    channel: Channel
+    outcome: Outcome
+    summary: str = Field(min_length=1, max_length=2000)
+    source: str = Field(default="mcp", min_length=1, max_length=40)
+    measurement_year: int = DEFAULT_YEAR
+
+
+class EscalationRequest(BaseModel):
+    member_id: str
+    reason: str = Field(min_length=1, max_length=1000)
+    campaign_id: int | None = None
+    source: str = Field(default="mcp", min_length=1, max_length=40)
+    measurement_year: int = DEFAULT_YEAR
+
+
+class BenefitSearch(BaseModel):
+    customer: str
+    query: str = Field(min_length=1, max_length=1000)
+    k: int = Field(default=5, ge=1, le=20)
+
+
+class BenefitHit(BaseModel):
+    id: str
+    section: str
+    title: str
+    text: str
+    distance: float
+
+
 def _audio_out(a: RenderedAudio) -> AudioOut:
     return AudioOut(**{**vars(a), "url": f"/scripts/{a.script_id}/audio"})
 
@@ -266,17 +312,23 @@ def create_app(
     )
 
     callback_services: list[CallbackService] = []
+    chunks = ChunkStore(cfg.database_url)
+    embedders: dict[str, Embeddings] = {}
+
+    def embeddings_for(purpose: str) -> Embeddings:
+        # Built on first use, like the TTS model: the service starts without Ollama.
+        if embeddings is not None:
+            return embeddings
+        if purpose not in embedders:
+            from caregap.llm.embeddings import LangChainEmbeddings
+            from caregap.llm.factory import build_embeddings
+
+            embedders[purpose] = LangChainEmbeddings(build_embeddings(cfg), purpose=purpose)
+        return embedders[purpose]
 
     def callbacks() -> CallbackService:
-        # Built on first use, like the TTS model: the service starts without Ollama.
         if not callback_services:
-            emb = embeddings
-            if emb is None:
-                from caregap.llm.embeddings import LangChainEmbeddings
-                from caregap.llm.factory import build_embeddings
-
-                emb = LangChainEmbeddings(build_embeddings(cfg), purpose="callback")
-            chunks = ChunkStore(cfg.database_url)
+            emb = embeddings_for("callback")
             agent = CallbackAgent(
                 client, prompt_store, configs,
                 lambda c: BenefitRetriever(store=chunks, embeddings=emb, customer=c),
@@ -285,11 +337,17 @@ def create_app(
             callback_services.append(CallbackService(cfg.database_url, agent))
         return callback_services[0]
 
+    members = MemberService(settings.database_url, store, configs, campaigns.clock)
+
     app = FastAPI(title="CareGap Voice core service", version="0.1.0")
 
     @app.exception_handler(NotFoundError)
     def not_found(_: Request, exc: NotFoundError) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=404)
+
+    @app.exception_handler(NoCustomerError)
+    def no_customer(_: Request, exc: NoCustomerError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=409)
 
     @app.exception_handler(InvalidSignatureError)
     def bad_signature(_: Request, exc: InvalidSignatureError) -> JSONResponse:
@@ -471,6 +529,39 @@ def create_app(
             outcome=a.outcome, reason=a.reason, answer=a.text, citations=list(a.citations),
             escalation_id=escalation_id,
         )  # fmt: skip
+
+    # --- agent tools (MCP) ------------------------------------------------------------
+
+    @app.get("/members/{member_id}")
+    def member_view(member_id: str, year: int = DEFAULT_YEAR) -> MemberOut:
+        v = members.view(member_id, year)
+        return MemberOut(**{**vars(v), "gaps": [GapOut(**vars(g)) for g in v.gaps]})
+
+    @app.post("/members/{member_id}/interactions", status_code=201)
+    def log_interaction(member_id: str, req: InteractionRequest) -> dict[str, int]:
+        iid = members.log_interaction(
+            member_id, channel=req.channel, outcome=req.outcome, summary=req.summary,
+            source=req.source, year=req.measurement_year,
+        )  # fmt: skip
+        return {"interaction_id": iid}
+
+    @app.post("/escalations")
+    def escalate(req: EscalationRequest, response: Response) -> dict[str, int | bool]:
+        eid, created = members.escalate(
+            req.member_id, reason=req.reason, source=req.source, year=req.measurement_year,
+            campaign_id=req.campaign_id,
+        )  # fmt: skip
+        response.status_code = 201 if created else 200
+        return {"escalation_id": eid, "created": created}
+
+    @app.post("/benefits/search")
+    def search_benefits(req: BenefitSearch) -> list[BenefitHit]:
+        customer(req.customer)
+        vector = embeddings_for("benefit-search").embed_query(req.query)
+        return [
+            BenefitHit(id=c.citation, section=c.section, title=c.title, text=c.text, distance=d)
+            for c, d in chunks.search(req.customer, vector, req.k)
+        ]
 
     @app.post("/notifications", status_code=202)
     def notification_sink(n: Notification) -> dict[str, str]:

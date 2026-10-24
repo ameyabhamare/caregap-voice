@@ -246,8 +246,34 @@ CREATE TABLE IF NOT EXISTS callback_questions (
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- The one definition of the escalation kinds (re-applied on every start, so it must list
+-- every kind ever written; agent_request is Phase 9).
 ALTER TABLE escalations DROP CONSTRAINT IF EXISTS escalations_kind_check;
 ALTER TABLE escalations ADD CONSTRAINT escalations_kind_check CHECK (kind IN (
-    'member_request', 'delivery_failed', 'workflow_error', 'callback_question'));
+    'member_request', 'delivery_failed', 'workflow_error', 'callback_question',
+    'agent_request'));
 ALTER TABLE escalations ADD COLUMN IF NOT EXISTS callback_question_id BIGINT
     REFERENCES callback_questions (id);
+
+-- Phase 9: the MCP server (caregap.mcp). An agent can log what happened in a contact with
+-- a member and ask for a human. The agent's own words go in note/summary, never in
+-- escalations.detail: notifications carry IDs only.
+CREATE TABLE IF NOT EXISTS member_interactions (
+    id          BIGSERIAL PRIMARY KEY,
+    member_id   TEXT NOT NULL REFERENCES members (member_id),
+    customer    TEXT NOT NULL,
+    channel     TEXT NOT NULL CHECK (channel IN ('phone', 'sms', 'email', 'chat', 'other')),
+    outcome     TEXT NOT NULL CHECK (outcome IN (
+                    'reached', 'left_message', 'no_answer', 'resolved', 'follow_up', 'other')),
+    summary     TEXT NOT NULL,
+    source      TEXT NOT NULL,              -- who logged it, e.g. mcp
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS member_interactions_member_idx
+    ON member_interactions (member_id, created_at);
+
+ALTER TABLE escalations ADD COLUMN IF NOT EXISTS note TEXT;
+-- One open agent request per member and reason: repeated tool calls return the same row.
+CREATE UNIQUE INDEX IF NOT EXISTS escalations_agent_request_once
+    ON escalations (member_id, md5(note)) WHERE kind = 'agent_request' AND resolved_at IS NULL;

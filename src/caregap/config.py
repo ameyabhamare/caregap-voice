@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     twilio_callback_url: str = "http://localhost:5678/webhook/twilio-events"
     #: Twilio REST API base; the local mock by default.
     twilio_api_base_url: str = "http://localhost:8100"
+    #: The core service as the MCP server (caregap.mcp, Phase 9) reaches it.
+    core_url: str = "http://localhost:8000"
     twilio_account_sid: str = "ACmock0000000000000000000000000000"
     twilio_auth_token: SecretStr = SecretStr("mock-auth-token")
     twilio_from_number: str = "+15550100000"

@@ -142,6 +142,9 @@
 - [x] Tests: tracing (local file store), audit trail end to end, append-only, dashboard
       queries and an AppTest smoke test of every tab
 - [x] ADR 0012, README, CLAUDE.md
+- [x] Live check: core image rebuilt, `make run-campaign` (campaign 5, 20 Sunrise members)
+      fully traceable: script (prompt v3, grade 5.5) -> approval -> audio -> no-answer ->
+      retry -> DTMF 0 -> escalation; MLflow traces linked; dashboard renders every tab
 - [ ] Approved
 
 ## Resume here (hand-off between sessions)

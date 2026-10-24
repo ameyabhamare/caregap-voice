@@ -15,6 +15,7 @@ dependencies = [
     "uvicorn>=0.30",
     "mlflow-skinny==3.16.1",
     "anthropic>=1.17,<2",
+    "mcp==2.3.0",
 ]
 
 [project.scripts]

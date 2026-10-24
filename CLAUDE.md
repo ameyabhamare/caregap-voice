@@ -41,6 +41,9 @@ src/caregap/          Python package
   rag/                benefits documents (md -> PDF -> sections), pgvector chunks + retriever,
                       callback agent with grounding check, callback service
   members.py          what an agent may see/do for a member (MCP tools' rules)
+  observability.py    MLflow tracing (one trace per core operation; off in tests/CI)
+  audit.py            append-only audit log + a member's campaign timeline
+  dashboard/          Streamlit dashboard (`make dashboard`); queries in data.py
   mcp/                MCP server over the core HTTP API (stdio; `python -m caregap.mcp`)
   prompts.py          prompt files <-> MLflow prompt registry
   voice/              TTS (Kokoro), paid stubs, pronunciation overrides, STT, WER, rendering
@@ -93,6 +96,8 @@ docs/adr/             architecture decision records
   campaign end to end (`CAMPAIGN_SIZE=...`, default customer sunrise). `make n8n-export` after editing workflows in the n8n UI.
 - `make mcp-config` prints the Claude Desktop entry for the MCP server (docs/mcp.md);
   `make mcp` runs it on stdio. `make db-schema` applies schema changes to an old volume.
+- `make dashboard` (http://localhost:8501); `make trace-member CAMPAIGN=.. MEMBER=..` prints
+  a member's audit timeline.
 - `make pipeline` (local PySpark) then `make sync-gaps`. `make pipeline-databricks` runs the
   job on Databricks serverless and syncs its output instead.
 
@@ -129,6 +134,9 @@ docs/adr/             architecture decision records
 - The MCP server is a thin layer like n8n: one core API call per tool, rules in
   `caregap.members`. Agent free text goes in `note`/`summary`, never in escalation
   `detail` (notifications carry IDs only).
+- Governed changes write an `audit.record` event with the same connection, in the same
+  transaction. Audit payloads hold IDs and outcomes, not free text. New core operations
+  get a root `observability.span(..., root=True, tags=...)`; deeper code uses child spans.
 - n8n is pinned to 1.121.3: later versions cannot activate CLI-imported workflows (ADR 0007).
 - New drug or plan names go in `voice/pronunciations.yaml` and `fixtures/voice/name_sentences.yaml`
   (a test keeps them in sync and checks IPA symbols against Kokoro's vocabulary).

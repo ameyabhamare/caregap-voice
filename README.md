@@ -249,6 +249,26 @@ sees only the member fields and measures the plan allows. Escalations go to the 
 outbox as the campaigns, and n8n delivers them with IDs only. Setup and a walkthrough are
 in [docs/mcp.md](docs/mcp.md); the design is in [ADR 0011](docs/adr/0011-mcp-integration-surface.md).
 
+### Observability and governance
+
+- **Traces**: every core operation (preparing a member's script, rendering audio,
+  answering a callback question, a benefit search) is one MLflow trace in the
+  `caregap-traces` experiment. Model calls, embeddings, compliance checks, retrieval, the
+  grounding check and TTS are spans inside it, tagged with customer, campaign and member.
+  `MLFLOW_TRACING=true` in compose; never in tests or CI.
+- **Audit log**: an append-only `audit_log` table records every generated message (prompt
+  versions, model, rule results, reading grade, cost, trace), every review (the
+  approver), audio, call, keypress, escalation and agent interaction.
+  `make trace-member CAMPAIGN=1 MEMBER=<id>` prints one member's path from script to audio
+  to call outcome.
+- **Cost and latency**: each script and callback answer stores the cost of its model
+  calls (Decimal; $0 on local models). A `stage_latency` view gives p50/p95 per stage.
+- **Dashboard**: `make dashboard` (http://localhost:8501) has five tabs: campaign funnel,
+  eval pass rates and WER, cost against the budget, latency per stage, and "trace a
+  member".
+
+See [ADR 0012](docs/adr/0012-observability-and-audit.md).
+
 > Upgrading from Phase 0: HAPI moved from H2 to Postgres. Run `make nuke && make up` once
 > so Postgres creates the `hapi` database.
 

@@ -14,7 +14,7 @@
 | 7 | RAG callback agent + hallucination analysis | Approved |
 | 8 | LLM-as-a-Judge, prompt iteration, CI gate | Approved |
 | 9 | MCP server | Approved |
-| 10 | Observability + governance | Not started |
+| 10 | Observability + governance | Built, report posted |
 | 11 | Live demo mode (optional spend) | Not started |
 | 12 | Docs and handoff | Not started |
 
@@ -129,8 +129,23 @@
 - [x] docs/mcp.md (Claude Desktop setup), `make mcp-config`, ADR 0011
 - [x] Phase report posted, approved (2026-10-24); gap reasons stay in MCP output (default)
 
+## Phase 10: Observability + governance
+- [x] MLflow tracing (`caregap.observability`): prepare/create_script, tts,
+      callback_question, benefit_search as root traces; model calls, embeddings,
+      compliance, retrieval, grounding as spans; trace ids stored on scripts, audio, answers
+- [x] Cost per message (`cost_usd` on scripts and callback answers, from the ledger)
+- [x] Latency per stage (`stage_latency` view, p50/p95), compliance time measured; WER
+      from the voice eval reports
+- [x] Append-only `audit_log` (trigger), events in the same transaction as each change;
+      timeline API, `make trace-member`
+- [x] Streamlit dashboard (`make dashboard`): funnel, evals, cost, latency, member trace
+- [x] Tests: tracing (local file store), audit trail end to end, append-only, dashboard
+      queries and an AppTest smoke test of every tab
+- [x] ADR 0012, README, CLAUDE.md
+- [ ] Approved
+
 ## Resume here (hand-off between sessions)
-Status: Phases 0-9 approved. Next: post the Phase 10 plan (observability + governance) and wait for "go".
+Status: Phases 0-9 approved; Phase 10 built, report posted; waiting for "approved".
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`,
@@ -219,6 +234,10 @@ Environment quirks seen in the cloud container:
 | 2026-10-24 | MCP over stdio only, official `mcp` SDK 2.3.0, thin layer over the core API | Claude Desktop launches local servers; no new port or auth. ADR 0011. Approved default. |
 | 2026-10-24 | Agents see only `allowed_member_fields` and the plan's measures; agent text in `note`, not `detail` | Same minimum-necessary rule as prompts; notifications stay IDs-only. |
 | 2026-10-24 | New escalation kind `agent_request`, idempotent per member + reason while open | Tool calls get retried; agent requests stay distinguishable. Approved default. |
+| 2026-10-24 | Traces per core operation in MLflow + audit log in Postgres, linked by trace id | A member's journey spans many HTTP calls over days; no single trace can hold it. ADR 0012. |
+| 2026-10-24 | Per-message "eval scores" = rule results + reading grade; no live judge | The judge is uncalibrated and would double model calls. Approved default. |
+| 2026-10-24 | Streamlit 1.65.0, own dependency group, runs on the host | Owner-approved dependency; no new container, not in the core image. |
+| 2026-10-24 | Audit times from the database clock; tests never trace | The demo campaign clock is shifted; `make` exports .env (tracing on), so tests force it off. |
 | 2026-10-22 | HAPI default (distroless) image, using its bundled `HealthCheck` probe | The `-tomcat` variant cannot unpack its WAR as non-root and took more than 14 min without ever becoming healthy; the default image is healthy in about 35 s. |
 
 ## Open questions

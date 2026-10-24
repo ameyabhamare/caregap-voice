@@ -119,7 +119,7 @@ pipeline-databricks: ## Deploy bundle, upload NDJSON, run the job on serverless,
 # --- core service, generation, compliance (Phase 3) ----------------------------
 N ?= 100
 
-.PHONY: eval record-fixtures eval-ci prompts-register prompts-candidate serve eval-rules eval-voice eval-rag label-judge judge-agreement
+.PHONY: eval record-fixtures eval-ci eval-compare prompts-register prompts-candidate serve eval-rules eval-voice eval-rag label-judge judge-agreement
 eval-voice: ## Round-trip TTS->STT WER eval incl. name WER before/after overrides (MLflow)
 	$(UV) python -m caregap.evals.voice
 
@@ -129,6 +129,9 @@ eval: ## Script eval suite (rules + judge + reading level) for ALIAS prompts; pr
 
 record-fixtures: ## Record every model response CI replays, thresholds and reports (live models)
 	$(UV) python -m caregap.evals.ci record
+
+eval-compare: ## Claude (MODEL, default claude-sonnet-5-5) vs local on the same evals; costs money, capped
+	$(UV) python -m caregap.evals.compare --model $${MODEL:-claude-sonnet-5-5} $(COMPARE_ARGS)
 
 eval-ci: ## CI eval gate: replay recorded fixtures, check thresholds, write reports/
 	$(UV) python -m caregap.evals.ci check

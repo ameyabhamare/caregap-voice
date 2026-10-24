@@ -21,7 +21,8 @@ Campaigns (Phase 5; called by n8n, see caregap.campaign.service):
     POST /attempts/{id}/dispatched                    Twilio accepted the call
     POST /attempts/{id}/dispatch-failed               Twilio refused the call
     POST /telephony/events                            a Twilio request relayed by n8n: the
-                                                      TwiML fetch, keypresses, call status
+                                                      TwiML fetch, keypresses, call status,
+                                                      inbound callback calls (Phase 11)
     POST /alerts                                      a failed n8n workflow
     GET  /notifications/outbox                        escalations to deliver
     POST /escalations/{id}/notified                   mark one delivered
@@ -59,7 +60,6 @@ from caregap.campaign.clock import Clock, build_clock
 from caregap.campaign.service import (
     CampaignService,
     EventConflictError,
-    InvalidSignatureError,
     LiveConfig,
     LiveLimitError,
     TelephonyConfig,
@@ -76,6 +76,8 @@ from caregap.prompts import PromptStore
 from caregap.rag.agent import CallbackAgent, token_limits
 from caregap.rag.service import CallbackService
 from caregap.rag.store import BenefitRetriever, ChunkStore
+from caregap.telephony.inbound import InboundCalls
+from caregap.telephony.twilio import InvalidSignatureError
 from caregap.voice.render import AudioRenderer, NotRenderableError, RenderedAudio, latest_audio
 
 DEFAULT_YEAR = 2025
@@ -520,8 +522,16 @@ def create_app(
         campaigns.dispatch_failed(attempt_id, req.error)
         return {"status": "ok"}
 
+    inbound = InboundCalls(
+        settings.database_url, callback_url=settings.twilio_callback_url,
+        auth_token=settings.twilio_auth_token.get_secret_value(), customers=configs,
+        callbacks=callbacks,
+    )  # fmt: skip
+
     @app.post("/telephony/events")
     def telephony_event(ev: TelephonyEvent) -> dict[str, str | None]:
+        if ev.query.get("event", "").startswith("inbound"):
+            return {"twiml": inbound.handle(ev.query, ev.body, ev.signature)}
         return {"twiml": campaigns.telephony_event(ev.query, ev.body, ev.signature)}
 
     @app.post("/alerts", status_code=201)

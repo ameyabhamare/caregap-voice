@@ -33,6 +33,8 @@ languages:
     callback_confirmation: Thank you. Someone from our team will call you back. Goodbye.
     qa_handoff: I can't answer that on this call. Someone from our team will call you back.
     qa_medical: I can't give medical advice. Please talk with your doctor. Someone from our team can also call you back.
+    qa_greeting: Hello, you've reached Sunrise Medicare Advantage. After the tone, ask a question about your plan's benefits, or press 0 to have someone call you back.
+    qa_more: Do you have another question about your benefits? Ask it now, or press 0 to have someone call you back.
     measure_descriptions:
       awv: a yearly wellness visit with your doctor
       eye_exam: a yearly eye exam
@@ -53,6 +55,8 @@ languages:
     callback_confirmation: Gracias. Alguien de nuestro equipo le devolverá la llamada. Adiós.
     qa_handoff: No puedo responder eso en esta llamada. Alguien de nuestro equipo le devolverá la llamada.
     qa_medical: No puedo dar consejos médicos. Por favor hable con su médico. Alguien de nuestro equipo también puede llamarle.
+    qa_greeting: Hola, se ha comunicado con Sunrise Medicare Advantage. Después del tono, haga una pregunta sobre los beneficios de su plan, o marque 0 para que alguien le devuelva la llamada.
+    qa_more: ¿Tiene otra pregunta sobre sus beneficios? Hágala ahora, o marque 0 para que alguien le devuelva la llamada.
     measure_descriptions:
       awv: una visita anual de bienestar con su médico
       eye_exam: un examen anual de la vista

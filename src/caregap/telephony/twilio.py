@@ -16,6 +16,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from xml.sax.saxutils import escape, quoteattr
 
+
+class InvalidSignatureError(PermissionError):
+    """A request that claims to come from Twilio but is not signed with our token."""
+
+
 #: CallStatus values after which Twilio sends no more status callbacks.
 TERMINAL_STATUSES = frozenset({"completed", "no-answer", "busy", "failed", "canceled"})
 
@@ -102,3 +107,19 @@ def play_and_gather(
 
 def say_and_hang_up(text: str, *, language: str = "en-US") -> str:
     return f"{_XML}<Response>{_say(text, language)}<Hangup/></Response>"
+
+
+def ask_by_voice(
+    prompt: str, action_url: str, *, closing: str, language: str = "en-US",
+    before: str = "",
+) -> str:  # fmt: skip
+    """Say ``before`` (an answer), then ``prompt`` while listening for speech or one key;
+    say ``closing`` and hang up if the caller says nothing."""
+    first = _say(before, language) if before else ""
+    return (
+        f"{_XML}<Response>{first}"
+        f'<Gather input="speech dtmf" numDigits="1" timeout="6" speechTimeout="auto" '
+        f'language={quoteattr(language)} method="POST" action={quoteattr(action_url)}>'
+        f"{_say(prompt, language)}</Gather>"
+        f"{_say(closing, language)}<Hangup/></Response>"
+    )

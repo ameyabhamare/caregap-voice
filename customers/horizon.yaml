@@ -32,6 +32,8 @@ languages:
     callback_confirmation: Thanks. A member of our team will call you back soon. Goodbye.
     qa_handoff: I can't answer that here. A member of our team will call you back.
     qa_medical: I can't give medical advice, so please check with your doctor. A member of our team can also call you back.
+    qa_greeting: Hi, this is Horizon ACA Marketplace. Ask your question about your plan's benefits after the tone, or press 0 and a member of our team will call you back.
+    qa_more: Anything else about your benefits? Ask now, or press 0 and a member of our team will call you back.
     measure_descriptions:
       eye_exam: a yearly eye exam
       statin: staying on schedule with your cholesterol medication refills

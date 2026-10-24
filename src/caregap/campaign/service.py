@@ -44,6 +44,7 @@ from caregap.outreach.profile import OutreachProfile
 from caregap.outreach.store import NotFoundError, OutreachStore
 from caregap.storage.r2 import R2Bucket
 from caregap.telephony import twilio
+from caregap.telephony.twilio import InvalidSignatureError
 from caregap.voice.render import AudioRenderer, latest_audio
 
 log = logging.getLogger(__name__)
@@ -63,10 +64,6 @@ _FOR_UPDATE = " FOR UPDATE OF a"
 
 ACTIVE_STATES = ("selected", "preparing", "ready", "calling", "retry_wait")
 CALL_DONE = ("completed", "no-answer", "busy", "failed", "canceled")
-
-
-class InvalidSignatureError(PermissionError):
-    pass
 
 
 class EventConflictError(RuntimeError):

@@ -59,6 +59,7 @@ def test_measures_match_the_pipeline() -> None:
         ("measure_descriptions", {"languages__en__measure_descriptions": {"awv": "x"}}),
         ("name the plan", {"languages__en__disclaimer": "For information only."}),
         ("press 9", {"languages__en__opt_out": "To stop these calls, say stop."}),
+        ("press 0 for a person", {"languages__en__qa_greeting": "Hello, ask your question."}),
         ("must differ", {"escalation__callback_digit": "9"}),
         ("min_age", {"members": {"min_age": 70, "max_age": 60}}),
         ("before", {"campaign__call_window_end": "08:00"}),

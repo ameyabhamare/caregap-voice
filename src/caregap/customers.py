@@ -108,6 +108,10 @@ class LanguageConfig(_Model):
     qa_handoff: str
     #: Callback Q&A: said for medical questions, before the hand-off.
     qa_medical: str
+    #: Inbound callback calls (Phase 11): the greeting, which must say how to reach a
+    #: person, and the prompt for another question after an answer.
+    qa_greeting: str
+    qa_more: str
     #: How each measure is described: services, never diagnoses or drugs.
     measure_descriptions: dict[str, str]
 
@@ -174,6 +178,11 @@ class CustomerConfig(_Model):
                 errors.append(
                     f"{where}.opt_out must tell members to press {self.escalation.opt_out_digit}"
                 )
+            digit = re.escape(self.escalation.callback_digit)
+            for field in ("qa_greeting", "qa_more"):
+                if not re.search(rf"(?<!\d){digit}(?!\d)", getattr(lang, field)):
+                    errors.append(f"{where}.{field} must tell callers to press "
+                                  f"{self.escalation.callback_digit} for a person")  # fmt: skip
         if errors:
             raise ValueError("; ".join(errors))
         return self

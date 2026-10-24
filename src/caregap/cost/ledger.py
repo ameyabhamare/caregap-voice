@@ -51,6 +51,8 @@ class Usage:
     output_tokens: int | None = None
     # Set when the provider served the call with a different model (e.g. a refusal fallback).
     served_model: str | None = None
+    #: Set by the ledger once the call is settled: what it was charged.
+    actual_usd: Decimal | None = None
 
 
 class LedgerStore(Protocol):
@@ -195,7 +197,7 @@ class CostLedger:
                 actual_usd=reservation.estimated_usd,
             )
             raise RuntimeError("CostLedger.guard block finished without reporting usage")
-        self.settle(
+        usage.actual_usd = self.settle(
             reservation,
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,

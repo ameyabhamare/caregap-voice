@@ -5,8 +5,10 @@ from __future__ import annotations
 import math
 import time
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Literal, Protocol
 
+from caregap import observability
 from caregap.cost import CostLedger
 
 Role = Literal["system", "user", "assistant"]
@@ -26,6 +28,8 @@ class Completion:
     output_tokens: int
     stop_reason: str
     latency_s: float = 0.0
+    #: What the ledger charged (set by LLMClient; providers leave it 0).
+    cost_usd: Decimal = Decimal(0)
 
 
 class ProviderError(RuntimeError):
@@ -63,23 +67,37 @@ class LLMClient:
     def complete(
         self, messages: list[Message], *, max_output_tokens: int, purpose: str
     ) -> Completion:
-        with self.ledger.guard(
-            provider=self.provider.name,
-            model=self.provider.model,
-            input_tokens=estimate_input_tokens(messages),
-            max_output_tokens=max_output_tokens,
-            purpose=purpose,
-        ) as usage:
-            started = time.monotonic()
-            completion = self.provider.complete(messages, max_output_tokens=max_output_tokens)
-            usage.input_tokens = completion.input_tokens
-            usage.output_tokens = completion.output_tokens
-            usage.served_model = completion.model
+        attrs = {"provider": self.provider.name, "model": self.provider.model, "purpose": purpose}
+        with observability.span("llm", "CHAT_MODEL", attributes=attrs) as span:
+            span.set_inputs({"messages": [vars(m) for m in messages]})
+            with self.ledger.guard(
+                provider=self.provider.name,
+                model=self.provider.model,
+                input_tokens=estimate_input_tokens(messages),
+                max_output_tokens=max_output_tokens,
+                purpose=purpose,
+            ) as usage:
+                started = time.monotonic()
+                completion = self.provider.complete(messages, max_output_tokens=max_output_tokens)
+                usage.input_tokens = completion.input_tokens
+                usage.output_tokens = completion.output_tokens
+                usage.served_model = completion.model
+            latency_s = time.monotonic() - started
+            cost = usage.actual_usd or Decimal(0)
+            span.set_outputs(completion.text)
+            for key, value in (
+                ("input_tokens", completion.input_tokens),
+                ("output_tokens", completion.output_tokens),
+                ("served_model", completion.model),
+                ("cost_usd", str(cost)),
+            ):
+                span.set_attribute(key, value)  # fmt: skip
         return Completion(
             text=completion.text,
             model=completion.model,
             input_tokens=completion.input_tokens,
             output_tokens=completion.output_tokens,
             stop_reason=completion.stop_reason,
-            latency_s=time.monotonic() - started,
+            latency_s=latency_s,
+            cost_usd=cost,
         )

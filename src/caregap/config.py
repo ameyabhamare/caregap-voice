@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     llm_fixtures_dir: Path = Path("fixtures/ci")
 
     mlflow_tracking_uri: str = "http://localhost:5000"
+    #: Trace core operations to MLflow (Phase 10). Off unless set: tests and CI never trace.
+    mlflow_tracing: bool = False
     fhir_base_url: str = "http://localhost:8080/fhir"
 
     #: Customer configs (one YAML per health plan); validated at startup.

@@ -125,6 +125,7 @@ services:
       CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-opus-5-5}
       CLAUDE_EFFORT: ${CLAUDE_EFFORT:-medium}
       MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_TRACING: ${MLFLOW_TRACING:-true}
       MLFLOW_DISABLE_AGENT_HINT: "1"
       DATA_DIR: /app/data
       TTS_VOICE: ${TTS_VOICE:-af_heart}

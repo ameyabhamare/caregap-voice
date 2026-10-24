@@ -13,6 +13,7 @@ from typing import Protocol
 import httpx
 from langchain_core.embeddings import Embeddings
 
+from caregap import observability
 from caregap.cost import CostLedger
 from caregap.llm.base import ProviderError
 
@@ -72,16 +73,22 @@ class EmbeddingClient:
         return self.provider.model
 
     def embed(self, texts: list[str], *, purpose: str) -> list[list[float]]:
-        with self.ledger.guard(
-            provider=self.provider.name,
-            model=self.provider.model,
-            input_tokens=sum(math.ceil(len(t) / 3) + 10 for t in texts),
-            max_output_tokens=0,
-            purpose=purpose,
-        ) as usage:
+        attrs = {"provider": self.provider.name, "model": self.provider.model, "purpose": purpose}
+        with (
+            observability.span("embed", "EMBEDDING", attributes=attrs) as span,
+            self.ledger.guard(
+                provider=self.provider.name,
+                model=self.provider.model,
+                input_tokens=sum(math.ceil(len(t) / 3) + 10 for t in texts),
+                max_output_tokens=0,
+                purpose=purpose,
+            ) as usage,
+        ):
+            span.set_inputs({"texts": len(texts)})
             result = self.provider.embed(texts)
             usage.input_tokens = result.input_tokens
             usage.output_tokens = 0
+            span.set_attribute("input_tokens", result.input_tokens)
         return result.vectors
 
 

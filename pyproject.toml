@@ -23,6 +23,9 @@ dependencies = [
 caregap-pipeline = "caregap.pipeline.job:main"
 
 [dependency-groups]
+dashboard = [
+    "streamlit==1.65.0",
+]
 dev = [
     "pytest>=8.3",
     "ruff>=0.8",
@@ -49,8 +52,9 @@ voice = [
 # The pipeline group (PySpark) is installed for development and tests; the core service
 # image can skip it with `uv sync --no-group pipeline`. The voice group (TTS/STT runtimes)
 # is installed by default too; CI tests use fakes and never load the models. The rag group
-# (LangChain core, PDF reading) is needed by the core service for callback Q&A.
-default-groups = ["dev", "pipeline", "rag", "voice"]
+# (LangChain core, PDF reading) is needed by the core service for callback Q&A. The
+# dashboard group (Streamlit) runs on the host only; the core image skips it.
+default-groups = ["dev", "pipeline", "rag", "voice", "dashboard"]
 
 [build-system]
 requires = ["hatchling"]
@@ -78,7 +82,7 @@ files = ["src", "tests"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["faster_whisper", "faster_whisper.*"]
+module = ["faster_whisper", "faster_whisper.*", "pandas", "pandas.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

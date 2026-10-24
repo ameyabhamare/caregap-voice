@@ -16,7 +16,7 @@ help: ## List targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(firstword $(MAKEFILE_LIST)) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 # --- setup -------------------------------------------------------------------
-.PHONY: install validate-config benefits-pdf ingest-benefits db-schema mcp mcp-config
+.PHONY: install validate-config benefits-pdf ingest-benefits db-schema mcp mcp-config trace-member
 install: ## Install Python deps and pre-commit hooks
 	uv sync
 	$(UV) pre-commit install
@@ -151,6 +151,14 @@ serve: ## Run the core service API on http://localhost:8000
 db-schema: ## Apply the idempotent schema to DATABASE_URL (after a schema change on old volumes)
 	$(UV) python -m caregap.db
 
+.PHONY: dashboard
+dashboard: ## Streamlit dashboard on http://localhost:8501: funnel, evals, cost, latency, traces
+	$(UV) streamlit run src/caregap/dashboard/app.py --server.address 127.0.0.1 \
+		--server.port $${DASHBOARD_PORT:-8501} --browser.gatherUsageStats false
+
+trace-member: ## Audit timeline of MEMBER in CAMPAIGN: script, audio, calls, outcome, traces
+	$(UV) python -m caregap.audit $(CAMPAIGN) $(MEMBER)
+
 mcp: ## Run the MCP server on stdio (Claude Desktop starts it itself; see docs/mcp.md)
 	$(UV) python -m caregap.mcp
 
@@ -212,6 +220,3 @@ define todo
 	@echo "make $@: not implemented yet ($(1))"; exit 1
 endef
 
-.PHONY: dashboard
-dashboard: ## [Phase 10] Streamlit dashboard
-	$(call todo,Phase 10)

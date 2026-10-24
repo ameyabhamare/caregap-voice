@@ -11,13 +11,13 @@ RUN --mount=type=secret,id=extra_ca \
     if [ -s /run/secrets/extra_ca ]; then export PIP_CERT=/run/secrets/extra_ca; fi; \
     pip install --no-cache-dir "uv==0.11.32"
 
-# Dependencies first (cached unless the lock changes). No dev or PySpark groups.
+# Dependencies first (cached unless the lock changes). No dev, PySpark or dashboard groups.
 COPY pyproject.toml uv.lock README.md ./
 RUN --mount=type=secret,id=extra_ca \
     if [ -s /run/secrets/extra_ca ]; then \
       cat /etc/ssl/certs/ca-certificates.crt /run/secrets/extra_ca > /tmp/ca.pem; \
       export SSL_CERT_FILE=/tmp/ca.pem; fi; \
-    uv sync --frozen --no-dev --no-group pipeline --no-install-project && rm -f /tmp/ca.pem
+    uv sync --frozen --no-dev --no-group pipeline --no-group dashboard --no-install-project && rm -f /tmp/ca.pem
 
 COPY src ./src
 COPY voice ./voice
@@ -31,7 +31,7 @@ RUN --mount=type=secret,id=extra_ca \
     if [ -s /run/secrets/extra_ca ]; then \
       cat /etc/ssl/certs/ca-certificates.crt /run/secrets/extra_ca > /tmp/ca.pem; \
       export SSL_CERT_FILE=/tmp/ca.pem; fi; \
-    uv sync --frozen --no-dev --no-group pipeline --no-editable && rm -f /tmp/ca.pem
+    uv sync --frozen --no-dev --no-group pipeline --no-group dashboard --no-editable && rm -f /tmp/ca.pem
 
 ENV PATH=/opt/venv/bin:$PATH
 EXPOSE 8000

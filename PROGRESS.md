@@ -164,9 +164,19 @@
       (docs/results/claude-vs-local.md, README Results)
 - [x] Approved 2026-10-25 (live call and recording deferred by the owner)
 
+## Phase 12: Docs and handoff
+- [x] Architecture diagram (Mermaid in the README)
+- [x] ADRs: 0002/0004/0006/0007/0011/0013 reviewed (dated updates), new 0014 PHI handling
+- [x] docs/RUNBOOK.md: deploy, add a customer, rotate keys, failures, prompt rollback
+- [x] README: first-run quick start, results, Claude comparison, limitations
+- [x] `make pull-model` also pulls nomic-embed-text
+- [ ] Acceptance: fresh clone, `make up && make seed && make run-campaign` from the README
+- [ ] Demo recording (waits on the owner's live call)
+- [ ] Approved
+
 ## Resume here (hand-off between sessions)
 Status: Phases 0-11 approved (Phase 11 on 2026-10-25, live call deferred by the owner).
-Next: Phase 12 plan posted, waiting on "go".
+Phase 12 in progress (docs done; acceptance run pending).
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`,

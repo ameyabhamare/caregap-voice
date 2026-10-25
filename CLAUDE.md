@@ -68,7 +68,9 @@ tests/unit/           no services needed; ledger contract tests also run against
 tests/integration/    need `make up`; marked `integration`
 docker/               per-service build context and init files (core image: docker/core)
 n8n/workflows/        n8n workflow exports (orchestration only; `make n8n-import`)
-docs/adr/             architecture decision records
+docs/adr/             architecture decision records (0014: PHI handling)
+docs/RUNBOOK.md       operator guide: deploy, add a customer, rotate keys, failures, prompt rollback
+docs/results/         Claude vs local comparison (`make eval-compare`)
 ```
 
 ## Commands

@@ -22,9 +22,11 @@ else, read, in order:
   2026-10-25 (sonnet-5-5, $0.94 of the $5 cap; docs/results/claude-vs-local.md, README
   Results). The owner deferred the real call and its recording to later, on their own
   computer.
-- Phase 12 (docs and hand-off) is built and its report is posted (2026-10-25); waiting
-  on "approved". Open after that: the owner's live call and demo recording (README
-  "Demo recording: pending").
+- Phase 12 (docs and hand-off) was approved on 2026-10-25: every phase in the brief is
+  done. Open: the owner's live call and demo recording (README "Demo recording:
+  pending"). Possible follow-ups, only if the owner asks: move the Twilio token into an
+  n8n credential (ADR 0007 update); stop local `make eval-ci` from overwriting
+  `reports/`.
 - State of this container after the Phase 12 acceptance run: the volumes were wiped and
   re-seeded from a fresh clone in /tmp/claude-0/accept/caregap-voice (same content digest
   as before, so this repo's `data/export` still matches). MLflow has the prompts but no

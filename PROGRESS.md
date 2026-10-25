@@ -173,12 +173,13 @@
 - [x] Acceptance 2026-10-25: fresh clone + empty volumes, README steps; campaign 15/20
       completed. Container-only workarounds: Docker Hub mirror, build CA, models fetched on
       the host (containers cannot verify the proxy's CA)
-- [ ] Demo recording (waits on the owner's live call)
-- [ ] Approved
+- [ ] Demo recording (waits on the owner's live call; not needed for approval)
+- [x] Approved 2026-10-25
 
 ## Resume here (hand-off between sessions)
 Status: Phases 0-11 approved (Phase 11 on 2026-10-25, live call deferred by the owner).
-Phase 12 built, report posted; waiting on "approved".
+All phases approved (Phase 12 on 2026-10-25). Open: the owner's live call and demo
+recording (docs/live-demo.md), then add the recording to the README.
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`,

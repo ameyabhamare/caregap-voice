@@ -15,8 +15,8 @@
 | 8 | LLM-as-a-Judge, prompt iteration, CI gate | Approved |
 | 9 | MCP server | Approved |
 | 10 | Observability + governance | Approved |
-| 11 | Live demo mode (optional spend) | Built, report posted |
-| 12 | Docs and handoff | Not started |
+| 11 | Live demo mode (optional spend) | Approved (live call deferred) |
+| 12 | Docs and handoff | Approved |
 
 ## Phase 0: Scaffold
 - [x] Repo structure, CLAUDE.md, PROGRESS.md, README skeleton, .env.example
@@ -177,8 +177,7 @@
 - [x] Approved 2026-10-25
 
 ## Resume here (hand-off between sessions)
-Status: Phases 0-11 approved (Phase 11 on 2026-10-25, live call deferred by the owner).
-All phases approved (Phase 12 on 2026-10-25). Open: the owner's live call and demo
+Status: all phases approved (Phase 12 on 2026-10-25). Open: the owner's live call and demo
 recording (docs/live-demo.md), then add the recording to the README.
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,

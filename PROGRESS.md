@@ -158,7 +158,8 @@
 - [x] Edge filter + cloudflared 2026.10.0 quick tunnel (profile `live`), live CLI
 - [x] `make eval-compare` (precheck, local judge, no promotion)
 - [x] ADR 0013, docs/live-demo.md, README, CLAUDE.md
-- [ ] Owner: real call to the verified number, recording for the README
+- [ ] Owner: real call to the verified number, recording for the README (deferred by the
+      owner 2026-10-25: not needed for approval; they will run it on their computer later)
 - [ ] Owner: ANTHROPIC_API_KEY, then `make eval-compare` (run here or on their computer)
 - [ ] Approved
 
@@ -260,6 +261,7 @@ Environment quirks seen in the cloud container:
 | 2026-10-24 | Live call runs on the owner's computer; this environment cannot reach Twilio, R2 or the tunnel | Built and tested here against the mock and a fake R2. ADR 0013. |
 | 2026-10-24 | Claude comparison: claude-sonnet-5-5, full sets, local judge; no paid TTS; R2; minimal inbound calls | Owner accepted the defaults ("go"). |
 | 2026-10-24 | Own SigV4 presigning instead of boto3 | ~60 lines, verified against AWS's example; no new dependency. |
+| 2026-10-25 | Live call deferred; Phase 11 can be approved on mock + fake-R2 tests | Owner's choice. The real Twilio/R2/tunnel path stays untested end to end until they run docs/live-demo.md; the README must say so. |
 | 2026-10-24 | Tunnel publishes an edge filter, not n8n | A quick tunnel exposes its whole origin; the n8n editor must stay private. |
 | 2026-10-24 | TwiML fetched through the n8n webhook | Keeps the core service private; one public route for every Twilio request. |
 | 2026-10-22 | HAPI default (distroless) image, using its bundled `HealthCheck` probe | The `-tomcat` variant cannot unpack its WAR as non-root and took more than 14 min without ever becoming healthy; the default image is healthy in about 35 s. |
@@ -284,7 +286,8 @@ Environment quirks seen in the cloud container:
 - (Resolved) Edge-case expectations and measure definitions reviewed and accepted.
 - Statin prevalence is high in Synthea (738 of 2,000 members, 37%). Fine for testing; not
   representative of a real plan.
-- Claude prices in `src/caregap/cost/pricing.py` were last checked 2026-10-06. Re-check before Phase 11.
+- Claude prices in `src/caregap/cost/pricing.py` re-checked 2026-10-25 against the live pricing
+  page: Opus 5.5 $4/$20, Sonnet 5.5 $2/$10, Haiku 5.5 $0.10/$0.50 ($0.50/$2.50 over 100K). Unchanged.
 - Paid TTS pricing (OpenAI, ElevenLabs) is not in the pricing table yet; add it in Phase 4
   with the stubbed providers. Unpriced paid providers are refused until then.
 - No CI workflow until Phase 8, per the brief.

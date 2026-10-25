@@ -14,7 +14,8 @@ else, read, in order:
 2. `CLAUDE.md` - conventions, layout, commands. It is current; follow it.
 3. `PROGRESS.md` - phase checklist, decisions log, open questions, and "Resume here"
    (environment quirks, how to rebuild local state).
-4. `docs/adr/` 0001-0010, especially 0010 (judge, prompt iteration, CI gate).
+4. `docs/adr/` 0001-0014, especially 0010 (judge, prompt iteration, CI gate), 0013 and 0014
+   (what may leave the machine; PHI).
 
 ## Where things stand
 - Phases 0-11 are approved (Phase 11 on 2026-10-25). The Claude comparison ran on

@@ -18,13 +18,12 @@ else, read, in order:
 
 ## Where things stand
 - Phases 0-10 are approved. Phase 11 (live demo mode) is built and its report is posted
-  (2026-10-24). Waiting on the owner for: the real call on their computer
-  (docs/live-demo.md), an ANTHROPIC_API_KEY for `make eval-compare` (environment
-  settings here, or their .env), and "approved".
-- If the owner adds ANTHROPIC_API_KEY to this environment: run
-  `make eval-compare COMPARE_ARGS=--precheck-only`, report the projection, then the full
-  run (Sonnet, about $3, under the $5 cap); commit docs/results/claude-vs-local.md and
-  add the numbers to the README. Never ask for the key in chat.
+  (2026-10-24). The Claude comparison ran on 2026-10-25 (sonnet-5-5, $0.94 of the $5
+  cap; docs/results/claude-vs-local.md, README Results). The owner deferred the real
+  call to later on their own computer; it is not needed for approval. Waiting on
+  "approved".
+- The ledger has $0.94 of paid spend recorded; a fresh Postgres volume resets it, so
+  the cap is per volume. Never ask for an API key in chat.
 - After "approved": mark Phase 11 approved in PROGRESS.md and this file, then post the
   Phase 12 plan (docs and hand-off: ADRs listed in BRIEF.md, a customer-facing RUNBOOK,
   README with results and honest limitations; acceptance: a fresh clone runs

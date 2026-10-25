@@ -160,12 +160,13 @@
 - [x] ADR 0013, docs/live-demo.md, README, CLAUDE.md
 - [ ] Owner: real call to the verified number, recording for the README (deferred by the
       owner 2026-10-25: not needed for approval; they will run it on their computer later)
-- [ ] Owner: ANTHROPIC_API_KEY, then `make eval-compare` (run here or on their computer)
+- [x] `make eval-compare` run here 2026-10-25: sonnet-5-5, $0.94 total incl. prechecks
+      (docs/results/claude-vs-local.md, README Results)
 - [ ] Approved
 
 ## Resume here (hand-off between sessions)
-Status: Phases 0-10 approved; Phase 11 built, report posted; waiting on the owner's live
-call, the Claude comparison (needs ANTHROPIC_API_KEY) and "approved".
+Status: Phases 0-10 approved; Phase 11 built, report posted, Claude comparison done
+(2026-10-25); live call deferred by the owner; waiting on "approved".
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`,

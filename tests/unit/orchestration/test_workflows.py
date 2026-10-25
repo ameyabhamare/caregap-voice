@@ -10,6 +10,8 @@ from typing import Any
 
 import pytest
 
+from caregap.telephony import n8n_credential
+
 WORKFLOWS = sorted(Path("n8n/workflows").glob("*.json"))
 ALLOWED_NODES = {
     "n8n-nodes-base.scheduleTrigger",
@@ -68,3 +70,20 @@ def test_every_connection_points_at_a_node() -> None:
             assert src in names
             for out in outs["main"]:
                 assert {c["node"] for c in out} <= names
+
+
+@pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: p.stem)
+def test_no_credentials_pass_through_workflow_data(path: Path) -> None:
+    # Auth headers built from core responses would be stored in n8n's execution history.
+    assert "authorization" not in path.read_text().lower()
+
+
+def test_calls_are_signed_with_the_imported_credential() -> None:
+    wf = load(Path("n8n/workflows/campaign-tick.json"))
+    (node,) = [n for n in wf["nodes"] if n["name"] == "Place call (Twilio)"]
+    assert node["parameters"]["authentication"] == "genericCredentialType"
+    assert node["parameters"]["genericAuthType"] == "httpBasicAuth"
+    assert node["credentials"]["httpBasicAuth"] == {
+        "id": n8n_credential.CREDENTIAL_ID,
+        "name": n8n_credential.CREDENTIAL_NAME,
+    }

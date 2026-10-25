@@ -486,7 +486,6 @@ class CampaignService:
         req = twilio.call_request(
             api_base_url=self.tel.api_base_url,
             account_sid=self.tel.account_sid,
-            auth_token=self.tel.auth_token,
             to=to,
             from_=self.tel.from_number,
             twiml_url=self.callback_url(attempt["id"], "twiml"),
@@ -496,7 +495,7 @@ class CampaignService:
         out: dict[str, Any] = {
             "action": "call",
             "attempt_id": attempt["id"],
-            "twilio": {"url": req.url, "authorization": req.authorization, "form": req.form},
+            "twilio": {"url": req.url, "form": req.form},
         }
         if self.tel.r2 is not None:
             # n8n copies the audio from the core service to this short-lived URL before it

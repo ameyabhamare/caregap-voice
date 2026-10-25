@@ -167,6 +167,8 @@ live-up: ## Live demo: start the tunnel + edge filter, write LIVE_WEBHOOK_URL, r
 .PHONY: live-restart-core
 live-restart-core:
 	$(COMPOSE) up -d --wait core
+	@# n8n signs calls with its own copy of the Twilio credential: load the live one.
+	@$(MAKE) --no-print-directory n8n-import
 
 live-down: ## Live demo: stop the tunnel and edge filter
 	$(COMPOSE) --profile live stop tunnel edge
@@ -215,7 +217,12 @@ CUSTOMER ?= sunrise
 seed-consent: ## Give members synthetic voice consent (keeps existing rows)
 	$(UV) python -m caregap.campaign.consent
 
-n8n-import: ## Load n8n/workflows into n8n and activate them (restarts n8n)
+n8n-import: ## Load the Twilio credential and n8n/workflows into n8n, activate them (restarts n8n)
+	@# The credential comes from the same settings as the core service. It goes in through
+	@# stdin and a temp file that is deleted at once; n8n stores it encrypted.
+	$(UV) python -m caregap.telephony.n8n_credential | $(COMPOSE) exec -T n8n sh -c \
+		'umask 077; f=$$(mktemp); cat > "$$f"; n8n import:credentials --input="$$f"; \
+		rc=$$?; rm -f "$$f"; exit $$rc'
 	$(COMPOSE) exec -T n8n n8n import:workflow --separate --input=/workflows
 	for id in $(N8N_WORKFLOWS); do \
 		$(COMPOSE) exec -T n8n n8n update:workflow --id=$$id --active=true || exit 1; done

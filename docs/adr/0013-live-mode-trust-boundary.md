@@ -85,4 +85,5 @@ anywhere.
 - In the Claude comparison, local callback answers took about 10 s at p50 on this
   environment's CPU (7 s when this ADR was written), which is closer to Twilio's ~15 s
   inbound timeout. Claude answered in about 2 s.
-- The Twilio auth token passes through n8n's execution history (see ADR 0007, update).
+- The Twilio auth token used to pass through n8n's execution history. It now lives in an
+  encrypted n8n credential instead (ADR 0007, update).

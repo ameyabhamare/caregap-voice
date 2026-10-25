@@ -210,17 +210,10 @@
       "parameters": {
         "method": "POST",
         "url": "={{ $('Claim call').item.json.twilio.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
         "options": {
           "timeout": 30000
-        },
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{ $('Claim call').item.json.twilio.authorization }}"
-            }
-          ]
         },
         "sendBody": true,
         "contentType": "form-urlencoded",
@@ -268,7 +261,13 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000,
-      "onError": "continueErrorOutput"
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "cgTwilioAuth0001",
+          "name": "CareGap: Twilio account"
+        }
+      }
     },
     {
       "parameters": {

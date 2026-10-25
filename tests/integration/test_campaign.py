@@ -246,6 +246,7 @@ def test_a_completed_call_end_to_end(h: Harness) -> None:
     out = h.post(f"/campaigns/{cid}/members/m-a/send")
     assert out["action"] == "call"
     tw = out["twilio"]
+    assert set(tw) == {"url", "form"}  # no credentials: n8n adds them from its own store
     assert tw["url"].endswith(f"/Accounts/{h.settings.twilio_account_sid}/Calls.json")
     assert tw["form"]["To"] == "+15550100001"
     assert tw["form"]["StatusCallback"] == (

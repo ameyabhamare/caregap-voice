@@ -439,9 +439,6 @@ Honest list, roughly by how much it matters:
   need is in [ADR 0014](docs/adr/0014-phi-handling.md).
 - **Live mode is untested against real services.** Twilio, R2 and the tunnel have only
   been exercised against the Twilio mock and a fake R2.
-- **The Twilio auth token is stored in n8n's execution history** in live mode, because
-  the core service hands n8n the full call request. n8n is private, but clear its
-  executions after a demo ([RUNBOOK](docs/RUNBOOK.md#3-rotate-keys)).
 - **The LLM judge is not trusted.** Against the owner's 50 labels no criterion reaches
   kappa 0.4. It fails most Spanish and Horizon scripts the rules pass, so it is reported
   but gates nothing.

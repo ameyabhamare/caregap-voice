@@ -33,15 +33,17 @@ def test_call_request() -> None:
     req = twilio.call_request(
         api_base_url="http://mock:8100/",
         account_sid="ACx",
-        auth_token="tok",
         to="+15553224433",
         from_="+15550100000",
         twiml_url="http://core/twiml/attempts/1",
         status_callback="http://n8n/webhook/twilio-events?attempt_id=1",
     )
     assert req.url == "http://mock:8100/2010-04-01/Accounts/ACx/Calls.json"
-    assert req.authorization == "Basic QUN4OnRvaw=="
     assert req.form["StatusCallback"].endswith("attempt_id=1")
+
+
+def test_basic_auth() -> None:
+    assert twilio.basic_auth("ACx", "tok") == "Basic QUN4OnRvaw=="
 
 
 def test_twiml_is_well_formed_and_escaped() -> None:

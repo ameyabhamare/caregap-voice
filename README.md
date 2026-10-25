@@ -305,8 +305,31 @@ Design decisions are recorded in [docs/adr](docs/adr).
 
 ## Results
 
-_To be filled in as phases land._
+### Claude vs the local model (`make eval-compare`, 2026-10-25)
+
+claude-sonnet-5-5 against local qwen2.5:3b, both using the same members, production
+prompts, golden questions and checks. Full tables: [docs/results/claude-vs-local.md](docs/results/claude-vs-local.md).
+
+| | local qwen2.5:3b | claude-sonnet-5-5 |
+|---|---|---|
+| Scripts compliant on first attempt (Sunrise / Sunrise ES / Horizon) | 89% / 100% / 75% | 99% / 100% / 64% |
+| Scripts compliant after one revision | 98% / 100% / 100% | 99% / 100% / 100% |
+| Callback answers correct (Sunrise / Horizon) | 79% / 67% | 100% / 97% |
+| Callback over-refusals (Sunrise / Horizon) | 21% / 30% | 0% / 0% |
+| Spoken hallucinations | 0% | 0% |
+| Latency p50, script / answer | 10-14 s / 10 s | about 2 s / 2 s |
+| Cost (192 scripts + 88 questions) | $0 | $0.88 |
+
+How to read it:
+- The grounding check keeps spoken hallucinations at 0% for both models. Claude's gain is
+  answering instead of handing off: it was over-refusing 0% of the time vs 21-30% locally.
+- Horizon first attempts fail more often on Claude, all on `max_length`; one revision
+  fixes every one.
+- Judge scores are left out here. The judge is the uncalibrated local model (no
+  criterion reaches kappa 0.4), so its numbers are reported only in the full tables.
+- Local latency is on CPU in a container. A GPU would narrow the gap.
 
 ## Limitations
 
-_To be filled in._
+- The live call (Twilio, R2, tunnel) has been tested against the Twilio mock and a fake
+  R2 only. A real call has not been made yet (docs/live-demo.md).

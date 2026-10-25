@@ -42,8 +42,9 @@ logs: ## Tail container logs
 nuke: ## Stop containers AND delete all volumes (data loss)
 	$(COMPOSE) down -v
 
-pull-model: ## Pull the default Ollama model (~2 GB download)
+pull-model: ## Pull the chat and embedding models into Ollama (~2.3 GB download)
 	$(COMPOSE) exec ollama ollama pull $(OLLAMA_MODEL)
+	$(COMPOSE) exec ollama ollama pull $(or $(EMBED_MODEL),nomic-embed-text)
 
 # --- quality -----------------------------------------------------------------
 .PHONY: lint fmt typecheck test test-all check

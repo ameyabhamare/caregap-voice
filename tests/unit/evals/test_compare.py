@@ -35,6 +35,9 @@ def test_report_puts_both_sides_and_the_cost_side_by_side() -> None:
 def test_refuses_without_an_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     from caregap import config
 
-    monkeypatch.setattr(config, "get_settings", lambda: Settings(_env_file=None))
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(
+        config, "get_settings", lambda: Settings(_env_file=None, anthropic_api_key=None)
+    )
     with pytest.raises(SystemExit, match="ANTHROPIC_API_KEY is not set"):
         compare.main([])

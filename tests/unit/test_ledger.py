@@ -163,3 +163,25 @@ def test_guard_refuses_before_running_block(store: LedgerStore) -> None:
 def test_negative_cap_rejected(store: LedgerStore) -> None:
     with pytest.raises(ValueError, match="non-negative"):
         CostLedger(store, Decimal("-1"))
+
+
+def test_settle_charges_higher_price_when_another_model_served(store: LedgerStore) -> None:
+    ledger = CostLedger(store, Decimal("5"))
+    r = ledger.reserve(**SONNET, input_tokens=1_000, max_output_tokens=1_000, purpose="t")
+    # Opus 5.5 ($4/$20) served instead of Sonnet 5.5 ($2/$10): charge the Opus price.
+    cost = ledger.settle(r, input_tokens=1_000, output_tokens=100, served_model="claude-opus-5-5")
+    assert cost == Decimal("0.006")
+
+
+def test_settle_with_unpriced_served_model_charges_estimate(store: LedgerStore) -> None:
+    ledger = CostLedger(store, Decimal("5"))
+    r = ledger.reserve(**SONNET, input_tokens=1_000, max_output_tokens=1_000, purpose="t")
+    cost = ledger.settle(r, input_tokens=10, output_tokens=10, served_model="claude-mystery")
+    assert cost == r.estimated_usd
+
+
+def test_guard_passes_served_model_through(store: LedgerStore) -> None:
+    ledger = CostLedger(store, Decimal("5"))
+    with ledger.guard(**SONNET, input_tokens=1_000, max_output_tokens=1_000, purpose="t") as u:
+        u.input_tokens, u.output_tokens, u.served_model = 1_000, 100, "claude-opus-5-5"
+    assert ledger.committed_usd() == Decimal("0.006")

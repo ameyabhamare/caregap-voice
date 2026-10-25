@@ -26,3 +26,9 @@ mlartifacts/
 .idea/
 .vscode/
 .DS_Store
+
+# Databricks bundle state
+.databricks/
+
+# Local build CA (see BUILD_EXTRA_CA_CERT)
+/docker/extra-ca.pem

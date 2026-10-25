@@ -1,0 +1,183 @@
+{
+  "id": "cgNotifyOutbox01",
+  "name": "CareGap: deliver notifications",
+  "description": null,
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "441aed8d-0b2b-5809-b7aa-6fab49fe9165",
+      "name": "Every minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "notify",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "a020f894-3e22-5762-bdcf-b97c8186cc40",
+      "name": "Run now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "e19f2b66-1121-5c66-960e-7b4594a6dccd"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.CORE_URL }}/notifications/outbox",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "66295a45-8e3a-5ce7-93b5-436a0df1d7e2",
+      "name": "Get outbox",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "items",
+        "options": {}
+      },
+      "id": "f3c145ff-ada0-5cc4-a563-0d322f6f8911",
+      "name": "One item per notification",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Get outbox').first().json.url }}",
+        "options": {
+          "timeout": 60000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.text }) }}"
+      },
+      "id": "a50b7d89-175b-5677-a3d3-135f530ab276",
+      "name": "Post to channel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CORE_URL }}/escalations/{{ $('One item per notification').item.json.id }}/notified",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "1b481b32-7116-55cf-bbf1-0bf7bcdeab72",
+      "name": "Mark delivered",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        40
+      ]
+    }
+  ],
+  "connections": {
+    "Every minute": {
+      "main": [
+        [
+          {
+            "node": "Get outbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Get outbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get outbox": {
+      "main": [
+        [
+          {
+            "node": "One item per notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One item per notification": {
+      "main": [
+        [
+          {
+            "node": "Post to channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to channel": {
+      "main": [
+        [
+          {
+            "node": "Mark delivered",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "errorWorkflow": "cgErrorAlerts001"
+  },
+  "meta": null,
+  "pinData": {},
+  "versionId": "910e6f53-e57d-50d0-ba30-1f5c7362d274",
+  "tags": []
+}

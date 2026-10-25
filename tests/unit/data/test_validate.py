@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from caregap.data.edge_cases import build_all
+from caregap.data.edge_cases import export_resources
 from caregap.data.validate import canonical, compare_manifests, validate_export, write_manifest
 
 
@@ -14,18 +14,10 @@ def _write(path: Path, resources: list[Any]) -> None:
 
 
 def _edge_resources() -> dict[str, list[Any]]:
-    """Every edge-case resource, grouped by type, with references rewritten to Type/id."""
-    by_type: dict[str, list[Any]] = {}
-    for bundle in build_all().values():
-        ids = {e["fullUrl"]: f"{e['resource']['resourceType']}/{e['resource']['id']}"
-               for e in bundle["entry"]}  # fmt: skip
-        for e in bundle["entry"]:
-            text = json.dumps(e["resource"])
-            for urn, rel in ids.items():
-                text = text.replace(f'"{urn}"', f'"{rel}"')
-            r = json.loads(text)
+    by_type = export_resources()
+    for resources in by_type.values():
+        for r in resources:
             r["meta"] = {**r["meta"], "versionId": "1", "lastUpdated": "2026-10-22T00:00:00Z"}
-            by_type.setdefault(r["resourceType"], []).append(r)
     return by_type
 
 

@@ -1,0 +1,229 @@
+# Sentences for the pronunciation (name WER) eval: every medication and plan name in
+# voice/pronunciations.yaml, written at dev time. Generated once by hand-run script;
+# edit directly. `names` lists the terms scored in each sentence.
+sentences:
+- text: Your plan covers atorvastatin at the lowest copay tier.
+  names:
+  - atorvastatin
+  kind: medication
+- text: Ask your pharmacist if your atorvastatin refill is ready to pick up.
+  names:
+  - atorvastatin
+  kind: medication
+- text: Your plan covers simvastatin at the lowest copay tier.
+  names:
+  - simvastatin
+  kind: medication
+- text: Ask your pharmacist if your simvastatin refill is ready to pick up.
+  names:
+  - simvastatin
+  kind: medication
+- text: Your plan covers rosuvastatin at the lowest copay tier.
+  names:
+  - rosuvastatin
+  kind: medication
+- text: Ask your pharmacist if your rosuvastatin refill is ready to pick up.
+  names:
+  - rosuvastatin
+  kind: medication
+- text: Your plan covers pravastatin at the lowest copay tier.
+  names:
+  - pravastatin
+  kind: medication
+- text: Ask your pharmacist if your pravastatin refill is ready to pick up.
+  names:
+  - pravastatin
+  kind: medication
+- text: Your plan covers lovastatin at the lowest copay tier.
+  names:
+  - lovastatin
+  kind: medication
+- text: Ask your pharmacist if your lovastatin refill is ready to pick up.
+  names:
+  - lovastatin
+  kind: medication
+- text: Your plan covers metformin at the lowest copay tier.
+  names:
+  - metformin
+  kind: medication
+- text: Ask your pharmacist if your metformin refill is ready to pick up.
+  names:
+  - metformin
+  kind: medication
+- text: Your plan covers lisinopril at the lowest copay tier.
+  names:
+  - lisinopril
+  kind: medication
+- text: Ask your pharmacist if your lisinopril refill is ready to pick up.
+  names:
+  - lisinopril
+  kind: medication
+- text: Your plan covers amlodipine at the lowest copay tier.
+  names:
+  - amlodipine
+  kind: medication
+- text: Ask your pharmacist if your amlodipine refill is ready to pick up.
+  names:
+  - amlodipine
+  kind: medication
+- text: Your plan covers hydrochlorothiazide at the lowest copay tier.
+  names:
+  - hydrochlorothiazide
+  kind: medication
+- text: Ask your pharmacist if your hydrochlorothiazide refill is ready to pick up.
+  names:
+  - hydrochlorothiazide
+  kind: medication
+- text: Your plan covers levothyroxine at the lowest copay tier.
+  names:
+  - levothyroxine
+  kind: medication
+- text: Ask your pharmacist if your levothyroxine refill is ready to pick up.
+  names:
+  - levothyroxine
+  kind: medication
+- text: Your plan covers losartan at the lowest copay tier.
+  names:
+  - losartan
+  kind: medication
+- text: Ask your pharmacist if your losartan refill is ready to pick up.
+  names:
+  - losartan
+  kind: medication
+- text: Your plan covers metoprolol at the lowest copay tier.
+  names:
+  - metoprolol
+  kind: medication
+- text: Ask your pharmacist if your metoprolol refill is ready to pick up.
+  names:
+  - metoprolol
+  kind: medication
+- text: Your plan covers gabapentin at the lowest copay tier.
+  names:
+  - gabapentin
+  kind: medication
+- text: Ask your pharmacist if your gabapentin refill is ready to pick up.
+  names:
+  - gabapentin
+  kind: medication
+- text: Your plan covers clopidogrel at the lowest copay tier.
+  names:
+  - clopidogrel
+  kind: medication
+- text: Ask your pharmacist if your clopidogrel refill is ready to pick up.
+  names:
+  - clopidogrel
+  kind: medication
+- text: Your plan covers warfarin at the lowest copay tier.
+  names:
+  - warfarin
+  kind: medication
+- text: Ask your pharmacist if your warfarin refill is ready to pick up.
+  names:
+  - warfarin
+  kind: medication
+- text: Your plan covers omeprazole at the lowest copay tier.
+  names:
+  - omeprazole
+  kind: medication
+- text: Ask your pharmacist if your omeprazole refill is ready to pick up.
+  names:
+  - omeprazole
+  kind: medication
+- text: Your plan covers albuterol at the lowest copay tier.
+  names:
+  - albuterol
+  kind: medication
+- text: Ask your pharmacist if your albuterol refill is ready to pick up.
+  names:
+  - albuterol
+  kind: medication
+- text: Your plan covers sertraline at the lowest copay tier.
+  names:
+  - sertraline
+  kind: medication
+- text: Ask your pharmacist if your sertraline refill is ready to pick up.
+  names:
+  - sertraline
+  kind: medication
+- text: Your plan covers acetaminophen at the lowest copay tier.
+  names:
+  - acetaminophen
+  kind: medication
+- text: Ask your pharmacist if your acetaminophen refill is ready to pick up.
+  names:
+  - acetaminophen
+  kind: medication
+- text: Your plan covers nitroglycerin at the lowest copay tier.
+  names:
+  - nitroglycerin
+  kind: medication
+- text: Ask your pharmacist if your nitroglycerin refill is ready to pick up.
+  names:
+  - nitroglycerin
+  kind: medication
+- text: Your plan covers fluticasone at the lowest copay tier.
+  names:
+  - fluticasone
+  kind: medication
+- text: Ask your pharmacist if your fluticasone refill is ready to pick up.
+  names:
+  - fluticasone
+  kind: medication
+- text: Your plan covers insulin at the lowest copay tier.
+  names:
+  - insulin
+  kind: medication
+- text: Ask your pharmacist if your insulin refill is ready to pick up.
+  names:
+  - insulin
+  kind: medication
+- text: Thank you for being a member of Sunrise Medicare Advantage.
+  names:
+  - Sunrise Medicare Advantage
+  kind: plan
+- text: Sunrise Medicare Advantage covers a yearly wellness visit at no cost to you.
+  names:
+  - Sunrise Medicare Advantage
+  kind: plan
+- text: Call the number on your Sunrise Medicare Advantage card to learn more.
+  names:
+  - Sunrise Medicare Advantage
+  kind: plan
+- text: This reminder comes from your care team at Sunrise Medicare Advantage.
+  names:
+  - Sunrise Medicare Advantage
+  kind: plan
+- text: Thank you for choosing Horizon ACA Marketplace for your health coverage.
+  names:
+  - Horizon ACA Marketplace
+  kind: plan
+- text: Horizon ACA Marketplace members can book a checkup with no copay.
+  names:
+  - Horizon ACA Marketplace
+  kind: plan
+- text: Your Horizon ACA Marketplace plan includes a yearly eye exam.
+  names:
+  - Horizon ACA Marketplace
+  kind: plan
+- text: Please call Horizon ACA Marketplace if your contact details have changed.
+  names:
+  - Horizon ACA Marketplace
+  kind: plan
+- text: If you also have Medicaid, your copay may be lower.
+  names:
+  - Medicaid
+  kind: plan
+- text: Some members qualify for both Medicare and Medicaid.
+  names:
+  - Medicare
+  - Medicaid
+  kind: plan
+- text: Your Medicare benefits include a yearly wellness visit.
+  names:
+  - Medicare
+  kind: plan
+- text: Medicaid can help with costs your plan does not cover.
+  names:
+  - Medicaid
+  kind: plan

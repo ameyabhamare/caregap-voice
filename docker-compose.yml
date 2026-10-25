@@ -23,7 +23,9 @@ services:
       retries: 20
 
   mlflow:
-    build: ./docker/mlflow
+    build:
+      context: ./docker/mlflow
+      secrets: [extra_ca]
     image: caregap-mlflow:local
     depends_on:
       postgres:
@@ -96,7 +98,159 @@ services:
       - ./data:/data
       - ./synthea:/synthea:ro
 
+  # Core service (FastAPI): every business decision. Same image runs the Twilio mock.
+  core:
+    build:
+      context: .
+      dockerfile: docker/core/Dockerfile
+      secrets: [extra_ca]
+    image: caregap-core:local
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    # Host user, so files under ./data (audio, model cache) stay owned by you.
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-caregap}:${POSTGRES_PASSWORD:-caregap}@postgres:5432/${POSTGRES_DB:-caregap}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_BUDGET_USD: ${LLM_BUDGET_USD:-5.00}
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+      EMBED_MODEL: ${EMBED_MODEL:-nomic-embed-text}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-opus-5-5}
+      CLAUDE_EFFORT: ${CLAUDE_EFFORT:-medium}
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_TRACING: ${MLFLOW_TRACING:-true}
+      MLFLOW_DISABLE_AGENT_HINT: "1"
+      DATA_DIR: /app/data
+      TTS_VOICE: ${TTS_VOICE:-af_heart}
+      TTS_PRONUNCIATION_OVERRIDES: ${TTS_PRONUNCIATION_OVERRIDES:-true}
+      CAMPAIGN_CLOCK: ${CAMPAIGN_CLOCK:-}
+      PUBLIC_BASE_URL: http://core:8000
+      # Live mode: the tunnel URL of the webhook (make live-up sets LIVE_WEBHOOK_URL).
+      TWILIO_CALLBACK_URL: ${LIVE_WEBHOOK_URL:-http://n8n:5678/webhook/twilio-events}
+      TWILIO_API_BASE_URL: ${TWILIO_API_BASE_URL:-http://twilio-mock:8100}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-ACmock0000000000000000000000000000}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-mock-auth-token}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-+15550100000}
+      NOTIFY_WEBHOOK_URL: ${NOTIFY_WEBHOOK_URL:-http://core:8000/notifications}
+      LIVE_MODE: ${LIVE_MODE:-false}
+      LIVE_ALLOWED_NUMBERS: ${LIVE_ALLOWED_NUMBERS:-}
+      LIVE_DEMO_NUMBER: ${LIVE_DEMO_NUMBER:-}
+      LIVE_MAX_CALLS: ${LIVE_MAX_CALLS:-3}
+      LIVE_RECORD_CALLS: ${LIVE_RECORD_CALLS:-true}
+      AUDIO_STORE: ${AUDIO_STORE:-core}
+      R2_ENDPOINT: ${R2_ENDPOINT:-}
+      R2_BUCKET: ${R2_BUCKET:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+    ports:
+      - "127.0.0.1:${CORE_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # Local stand-in for Twilio's call API (caregap.telephony.mock).
+  twilio-mock:
+    image: caregap-core:local
+    depends_on:
+      core:
+        condition: service_healthy
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    command: ["uvicorn", "--factory", "caregap.telephony.mock:create_app", "--host", "0.0.0.0", "--port", "8100"]
+    environment:
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-ACmock0000000000000000000000000000}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-mock-auth-token}
+      MOCK_CALL_DELAY_S: ${MOCK_CALL_DELAY_S:-1.0}
+      # The mock's fake R2 (/r2/...) checks presigned URLs with these credentials.
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+    ports:
+      - "127.0.0.1:${TWILIO_MOCK_PORT:-8100}:8100"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8100/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # Live demo mode only (`make live-up`; docs/live-demo.md). The tunnel publishes the edge
+  # filter, which forwards nothing but Twilio's webhook to n8n.
+  edge:
+    image: caregap-core:local
+    profiles: [live]
+    depends_on:
+      n8n:
+        condition: service_healthy
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    command: ["uvicorn", "--factory", "caregap.telephony.edge:create_app", "--host", "0.0.0.0", "--port", "8200"]
+    environment:
+      N8N_WEBHOOK_URL: http://n8n:5678/webhook/twilio-events
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8200/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # A Cloudflare quick tunnel (no account; a new trycloudflare.com URL each start).
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.0
+    profiles: [live]
+    depends_on:
+      edge:
+        condition: service_healthy
+    command: ["tunnel", "--no-autoupdate", "--url", "http://edge:8200"]
+
+  # Orchestration only: schedules, retries of HTTP calls, routing, notifications.
+  # Workflows live in n8n/workflows and are loaded with `make n8n-import`.
+  n8n:
+    image: n8nio/n8n:1.121.3
+    depends_on:
+      core:
+        condition: service_healthy
+    environment:
+      CORE_URL: http://core:8000
+      # IPv4: n8n's default "::" fails on Docker hosts without IPv6.
+      N8N_LISTEN_ADDRESS: 0.0.0.0
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_SECURE_COOKIE: "false"
+      N8N_RUNNERS_ENABLED: "true"
+      DB_SQLITE_POOL_SIZE: "2"
+      N8N_GIT_NODE_DISABLE_BARE_REPOS: "true"
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+      WEBHOOK_URL: http://n8n:5678/
+      GENERIC_TIMEZONE: ${CAMPAIGN_TIMEZONE:-America/New_York}
+      TZ: ${CAMPAIGN_TIMEZONE:-America/New_York}
+    ports:
+      - "127.0.0.1:${N8N_PORT:-5678}:5678"
+    volumes:
+      - n8ndata:/home/node/.n8n
+      - ./n8n/workflows:/workflows:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
 volumes:
   pgdata:
   mlartifacts:
   ollama:
+  n8ndata:
+
+secrets:
+  # Extra CA for image builds behind a TLS-inspecting proxy; empty by default.
+  extra_ca:
+    file: ${BUILD_EXTRA_CA_CERT:-./docker/no-extra-ca.pem}

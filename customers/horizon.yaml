@@ -1,0 +1,54 @@
+# Horizon ACA Marketplace. Synthetic customer for the demo (schema: src/caregap/customers.py).
+id: horizon
+plan_name: Horizon ACA Marketplace
+# Callback questions are answered only from this document.
+benefits_document: benefits/horizon.pdf
+
+# Marketplace plan: members under 65 (age on Dec 31 of the measurement year).
+members:
+  max_age: 64
+
+# No yearly wellness visit (a Medicare benefit); eye exams first, then statin refills.
+measures: [eye_exam, statin]
+max_words: 100
+max_gaps_per_script: 2
+
+# No member details at all reach a prompt: scripts greet members without a name.
+allowed_member_fields: []
+
+default_language: en
+languages:
+  en:
+    voice: am_michael
+    say_language: en-US
+    script_prompt: outreach-script-generic
+    revise_prompt: outreach-script-revise
+    disclaimer: >-
+      This call is from Horizon ACA Marketplace. It is for information only and is not
+      medical advice.
+    opt_out: Press 8 to stop these calls.
+    goodbye: Thanks for listening. Goodbye.
+    opt_out_confirmation: You are now opted out of these calls. Goodbye.
+    callback_confirmation: Thanks. A member of our team will call you back soon. Goodbye.
+    qa_handoff: I can't answer that here. A member of our team will call you back.
+    qa_medical: I can't give medical advice, so please check with your doctor. A member of our team can also call you back.
+    qa_greeting: Hi, this is Horizon ACA Marketplace. Ask your question about your plan's benefits after the tone, or press 0 and a member of our team will call you back.
+    qa_more: Anything else about your benefits? Ask now, or press 0 and a member of our team will call you back.
+    measure_descriptions:
+      eye_exam: a yearly eye exam
+      statin: staying on schedule with your cholesterol medication refills
+
+campaign:
+  timezone: America/New_York
+  # Weekdays only, business hours.
+  call_window_start: "10:00"
+  call_window_end: "19:00"
+  call_days: [1, 2, 3, 4, 5]
+  max_call_attempts: 2
+  retry_delay_minutes: 240
+  approval_first_n: 3
+
+escalation:
+  opt_out_digit: "8"
+  callback_digit: "0"
+  alert_on_delivery_failure: true

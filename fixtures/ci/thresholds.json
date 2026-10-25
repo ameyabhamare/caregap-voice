@@ -1,0 +1,39 @@
+{
+  "scripts:sunrise": {
+    "final_pass_rate": {
+      "min": 0.94
+    }
+  },
+  "scripts:sunrise-es": {
+    "final_pass_rate": {
+      "min": 0.95
+    }
+  },
+  "scripts:horizon": {
+    "final_pass_rate": {
+      "min": 0.95
+    }
+  },
+  "rag:horizon": {
+    "hallucination_rate": {
+      "max": 0.0
+    },
+    "refusal_accuracy": {
+      "min": 0.95
+    },
+    "answer_accuracy": {
+      "min": 0.617
+    }
+  },
+  "rag:sunrise": {
+    "hallucination_rate": {
+      "max": 0.0
+    },
+    "refusal_accuracy": {
+      "min": 0.95
+    },
+    "answer_accuracy": {
+      "min": 0.738
+    }
+  }
+}

@@ -316,3 +316,32 @@ def build_bundle(member: Member) -> Resource:
 
 def build_all(path: Path = DEFAULT_PATH) -> dict[str, Resource]:
     return {m.id: build_bundle(m) for m in load(path).members}
+
+
+def export_resources(path: Path = DEFAULT_PATH) -> dict[str, list[Resource]]:
+    """Edge-case resources grouped by type, shaped like a HAPI bulk export.
+
+    ``urn:uuid:`` references are rewritten to ``Type/id`` the way HAPI resolves them on
+    load, so pipeline tests can run on edge cases without a FHIR server.
+    """
+    by_type: dict[str, list[Resource]] = {}
+    for bundle in build_all(path).values():
+        targets = {
+            e["fullUrl"]: f"{e['resource']['resourceType']}/{e['resource']['id']}"
+            for e in bundle["entry"]
+        }
+        for e in bundle["entry"]:
+            resource = _rewrite_refs(e["resource"], targets)
+            by_type.setdefault(resource["resourceType"], []).append(resource)
+    return by_type
+
+
+def _rewrite_refs(obj: Any, targets: dict[str, str]) -> Any:
+    if isinstance(obj, dict):
+        out = {k: _rewrite_refs(v, targets) for k, v in obj.items()}
+        if isinstance(out.get("reference"), str):
+            out["reference"] = targets.get(out["reference"], out["reference"])
+        return out
+    if isinstance(obj, list):
+        return [_rewrite_refs(v, targets) for v in obj]
+    return obj

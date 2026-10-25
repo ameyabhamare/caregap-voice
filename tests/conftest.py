@@ -12,6 +12,10 @@ from caregap.db import apply_schema
 # Integration tests use their own database so they never touch dev data.
 TEST_DB = "caregap_test"
 
+# `make` exports .env, which turns tracing on for the dev stack. Tests never trace to it
+# (tests/unit/test_observability.py uses a throwaway local store).
+os.environ["MLFLOW_TRACING"] = "false"
+
 
 def _admin_url() -> str:
     return os.environ.get(

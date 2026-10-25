@@ -30,3 +30,11 @@ A runaway eval loop or a bug must not be able to spend more than the cap.
 - Actual cost can exceed the estimate if the prompt-token count was underestimated, so
   total spend can end slightly above the cap; every later paid call is refused.
 - Resetting the budget means deleting ledger rows deliberately; there is no API for it.
+
+## Update (2026-10-25, Phase 12)
+- The one paid run so far, `make eval-compare` with claude-sonnet-5-5, recorded $0.94 in
+  the ledger (401 calls) against the $5 cap. Its precheck projection ($0.97) was within
+  4% of the actual cost.
+- Prices were re-checked against Anthropic's pricing page before that run.
+- The ledger lives in the Postgres volume, so the cap is lifetime per volume:
+  `make nuke` resets it.

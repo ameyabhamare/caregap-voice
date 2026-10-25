@@ -1,0 +1,611 @@
+{
+  "id": "cgCampaignTick01",
+  "name": "CareGap: campaign tick",
+  "description": null,
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "441aed8d-0b2b-5809-b7aa-6fab49fe9165",
+      "name": "Every minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "campaign-tick",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "a020f894-3e22-5762-bdcf-b97c8186cc40",
+      "name": "Run now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "434ec2af-79cc-57c3-9271-6a44248b45af"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.CORE_URL }}/work",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "dc97da1a-d496-59c4-9dc5-4e01cdf16ea8",
+      "name": "Get due work",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "items",
+        "options": {}
+      },
+      "id": "44a3f73f-b55f-5fd1-8e83-f09d17fb39cc",
+      "name": "One item per member",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "ab8fb127-5af5-54f0-b189-68f94ef69850",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "prepare",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "prepare"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "bd2a587c-2e09-5402-906c-44e89e7e3dc6",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "send",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "send"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4ffcc7fa-bcf1-55ff-8afc-deaf3385dda1",
+      "name": "Route by action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        660,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CORE_URL }}/campaigns/{{ $json.campaign_id }}/members/{{ $json.member_id }}/prepare",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "id": "e4b2c9ea-9baa-5c0b-8608-a56505ccb954",
+      "name": "Prepare script",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        0
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CORE_URL }}/campaigns/{{ $json.campaign_id }}/members/{{ $json.member_id }}/send",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "273befe3-77d1-5733-8aea-ad016db3b8db",
+      "name": "Claim call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        220
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0c490f14-5fa1-50a8-8b72-461b4e9d68d6",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "call",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c19c69a5-b079-534c-9855-a916b3fc0d63",
+      "name": "Call to place?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Claim call').item.json.twilio.url }}",
+        "options": {
+          "timeout": 30000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $('Claim call').item.json.twilio.authorization }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "To",
+              "value": "={{ $('Claim call').item.json.twilio.form.To }}"
+            },
+            {
+              "name": "From",
+              "value": "={{ $('Claim call').item.json.twilio.form.From }}"
+            },
+            {
+              "name": "Url",
+              "value": "={{ $('Claim call').item.json.twilio.form.Url }}"
+            },
+            {
+              "name": "Method",
+              "value": "={{ $('Claim call').item.json.twilio.form.Method }}"
+            },
+            {
+              "name": "StatusCallback",
+              "value": "={{ $('Claim call').item.json.twilio.form.StatusCallback }}"
+            },
+            {
+              "name": "StatusCallbackMethod",
+              "value": "={{ $('Claim call').item.json.twilio.form.StatusCallbackMethod }}"
+            },
+            {
+              "name": "Record",
+              "value": "={{ $('Claim call').item.json.twilio.form.Record ?? 'false' }}"
+            }
+          ]
+        }
+      },
+      "id": "f1b1441c-c74f-57d9-94c1-fa8e9041f33c",
+      "name": "Place call (Twilio)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        200
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CORE_URL }}/alerts",
+        "options": {
+          "timeout": 60000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflow: $workflow.name, node: $prevNode.name, message: 'member ' + $('Route by action').item.json.member_id + ' in campaign ' + $('Route by action').item.json.campaign_id + ': ' + String($json.error?.message ?? $json.error ?? 'request failed'), execution: String($execution.id) }) }}"
+      },
+      "id": "b6e5d684-9e39-5b65-abc3-614fd9c8615a",
+      "name": "Record item alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CORE_URL }}/attempts/{{ $('Claim call').item.json.attempt_id }}/dispatched",
+        "options": {
+          "timeout": 60000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ call_sid: $json.sid }) }}"
+      },
+      "id": "06f42366-8d79-54b3-b5e5-bf1216517e58",
+      "name": "Record dispatched",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CORE_URL }}/attempts/{{ $('Claim call').item.json.attempt_id }}/dispatch-failed",
+        "options": {
+          "timeout": 60000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ error: String($json.error?.message ?? $json.error ?? 'create-call request failed') }) }}"
+      },
+      "id": "5f1654a9-8d57-5082-9d7c-10a7269b1d18",
+      "name": "Record dispatch failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "800ac3eb-a14c-5af1-af26-4e06963c6f9c",
+              "leftValue": "={{ !!$json.upload }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7aeed749-675b-5b17-b081-ba675c1b833d",
+      "name": "Upload audio first?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1340,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.CORE_URL }}/scripts/{{ $json.upload.script_id }}/audio",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "2b0beddb-4646-5e0c-b6a2-6b255b10ba77",
+      "name": "Fetch audio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        340
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $('Claim call').item.json.upload.put_url }}",
+        "options": {
+          "timeout": 60000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "={{ $('Claim call').item.json.upload.content_type }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data"
+      },
+      "id": "df8c48af-6a27-5d7d-b124-460c432606f5",
+      "name": "Upload audio (R2)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        340
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    }
+  ],
+  "connections": {
+    "Every minute": {
+      "main": [
+        [
+          {
+            "node": "Get due work",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Get due work",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get due work": {
+      "main": [
+        [
+          {
+            "node": "One item per member",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One item per member": {
+      "main": [
+        [
+          {
+            "node": "Route by action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by action": {
+      "main": [
+        [
+          {
+            "node": "Prepare script",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Claim call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim call": {
+      "main": [
+        [
+          {
+            "node": "Call to place?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record item alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare script": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Record item alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call to place?": {
+      "main": [
+        [
+          {
+            "node": "Upload audio first?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Place call (Twilio)": {
+      "main": [
+        [
+          {
+            "node": "Record dispatched",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record dispatch failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload audio first?": {
+      "main": [
+        [
+          {
+            "node": "Fetch audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Place call (Twilio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch audio": {
+      "main": [
+        [
+          {
+            "node": "Upload audio (R2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record dispatch failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload audio (R2)": {
+      "main": [
+        [
+          {
+            "node": "Place call (Twilio)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record dispatch failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "errorWorkflow": "cgErrorAlerts001"
+  },
+  "meta": null,
+  "pinData": {},
+  "versionId": "db377056-f516-58be-a557-8cb030986bd3",
+  "tags": []
+}

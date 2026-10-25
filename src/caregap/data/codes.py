@@ -16,6 +16,7 @@ EDGE_CASE_IDENTIFIER_SYSTEM = "urn:caregap:edge-case"
 
 WELLNESS_ENCOUNTER = ("185349003", "Encounter for check up (procedure)")
 HOSPICE_ENCOUNTER = ("305336008", "Admission to hospice (procedure)")
+HOSPICE_CARE = ("385763009", "Hospice care (regime/therapy)")
 DIABETES_TYPE_2 = ("44054006", "Diabetes mellitus type 2 (disorder)")
 DIABETES_TYPE_1 = ("46635009", "Diabetes mellitus type 1 (disorder)")
 PREDIABETES = ("714628002", "Prediabetes (finding)")

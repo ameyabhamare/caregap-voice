@@ -1,0 +1,79 @@
+# Sunrise Medicare Advantage. Synthetic customer for the demo; every behavior difference
+# between customers comes from files like this one (schema: src/caregap/customers.py).
+id: sunrise
+plan_name: Sunrise Medicare Advantage
+# Callback questions are answered only from this document.
+benefits_document: benefits/sunrise.pdf
+
+# Medicare Advantage: members aged 65 and over (age on Dec 31 of the measurement year).
+members:
+  min_age: 65
+
+# Priority order; a script covers at most max_gaps_per_script open gaps.
+measures: [awv, eye_exam, statin]
+max_words: 120
+max_gaps_per_script: 2
+
+# The only member detail a prompt may see. Everything else is PHI kept out of prompts.
+allowed_member_fields: [given_name]
+
+default_language: en
+languages:
+  en:
+    voice: af_heart
+    say_language: en-US
+    script_prompt: outreach-script
+    revise_prompt: outreach-script-revise
+    disclaimer: >-
+      This message is from Sunrise Medicare Advantage and is for information only.
+      It is not medical advice.
+    opt_out: To stop these calls, press 9 or say stop.
+    goodbye: Thank you for your time. Goodbye.
+    opt_out_confirmation: You will not receive more of these calls. Goodbye.
+    callback_confirmation: Thank you. Someone from our team will call you back. Goodbye.
+    qa_handoff: I can't answer that on this call. Someone from our team will call you back.
+    qa_medical: I can't give medical advice. Please talk with your doctor. Someone from our team can also call you back.
+    qa_greeting: Hello, you've reached Sunrise Medicare Advantage. After the tone, ask a question about your plan's benefits, or press 0 to have someone call you back.
+    qa_more: Do you have another question about your benefits? Ask it now, or press 0 to have someone call you back.
+    measure_descriptions:
+      awv: a yearly wellness visit with your doctor
+      eye_exam: a yearly eye exam
+      statin: keeping your cholesterol medication refills on schedule
+  # Members whose preferred language is Spanish. Wording drafted at dev time; not yet
+  # reviewed by a native speaker.
+  es:
+    voice: ef_dora
+    say_language: es-US
+    script_prompt: outreach-script-es
+    revise_prompt: outreach-script-revise-es
+    disclaimer: >-
+      Este mensaje es de Sunrise Medicare Advantage y es solo informativo.
+      No es un consejo médico.
+    opt_out: Para dejar de recibir estas llamadas, oprima 9 o diga alto.
+    goodbye: Gracias por su tiempo. Adiós.
+    opt_out_confirmation: No recibirá más llamadas como esta. Adiós.
+    callback_confirmation: Gracias. Alguien de nuestro equipo le devolverá la llamada. Adiós.
+    qa_handoff: No puedo responder eso en esta llamada. Alguien de nuestro equipo le devolverá la llamada.
+    qa_medical: No puedo dar consejos médicos. Por favor hable con su médico. Alguien de nuestro equipo también puede llamarle.
+    qa_greeting: Hola, se ha comunicado con Sunrise Medicare Advantage. Después del tono, haga una pregunta sobre los beneficios de su plan, o marque 0 para que alguien le devuelva la llamada.
+    qa_more: ¿Tiene otra pregunta sobre sus beneficios? Hágala ahora, o marque 0 para que alguien le devuelva la llamada.
+    measure_descriptions:
+      awv: una visita anual de bienestar con su médico
+      eye_exam: un examen anual de la vista
+      statin: mantener al día los resurtidos de su medicamento para el colesterol
+
+campaign:
+  timezone: America/New_York
+  # Stricter than the TCPA's 8am-9pm, and no Sunday calls.
+  call_window_start: "09:00"
+  call_window_end: "20:00"
+  call_days: [1, 2, 3, 4, 5, 6]
+  max_call_attempts: 3
+  retry_delay_minutes: 240
+  # The first N messages of every campaign wait for a human, even when compliant.
+  approval_first_n: 5
+
+escalation:
+  opt_out_digit: "9"
+  callback_digit: "0"
+  alert_on_delivery_failure: true

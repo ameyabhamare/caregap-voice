@@ -11,16 +11,50 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "httpx>=0.28",
     "pyyaml>=6.0",
+    "fastapi>=0.115,<0.158",
+    "uvicorn>=0.30",
+    "mlflow-skinny==3.16.1",
+    "anthropic>=1.17,<2",
+    "mcp==2.3.0",
 ]
 
+[project.scripts]
+# Entry point for the Databricks python_wheel_task (and handy locally).
+caregap-pipeline = "caregap.pipeline.job:main"
+
 [dependency-groups]
+dashboard = [
+    "streamlit==1.65.0",
+]
 dev = [
     "pytest>=8.3",
     "ruff>=0.8",
     "mypy>=1.13",
     "pre-commit>=4.0",
     "types-pyyaml>=6.0",
+    "fpdf2>=2.8.9",
 ]
+pipeline = [
+    "pyspark==4.0.4",
+]
+rag = [
+    "langchain-core>=1.7.0",
+    "langchain-text-splitters>=1.1.3",
+    "pypdf>=6.21.2",
+]
+voice = [
+    "av>=14,<19",
+    "faster-whisper==1.2.1",
+    "kokoro-onnx==0.6.1",
+]
+
+[tool.uv]
+# The pipeline group (PySpark) is installed for development and tests; the core service
+# image can skip it with `uv sync --no-group pipeline`. The voice group (TTS/STT runtimes)
+# is installed by default too; CI tests use fakes and never load the models. The rag group
+# (LangChain core, PDF reading) is needed by the core service for callback Q&A. The
+# dashboard group (Streamlit) runs on the host only; the core image skips it.
+default-groups = ["dev", "pipeline", "rag", "voice", "dashboard"]
 
 [build-system]
 requires = ["hatchling"]
@@ -39,7 +73,7 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "S", "DTZ"]
 ignore = []
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S311"]
+"tests/**" = ["S101", "S105", "S106", "S311", "S314"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -47,9 +81,14 @@ strict = true
 files = ["src", "tests"]
 plugins = ["pydantic.mypy"]
 
+[[tool.mypy.overrides]]
+module = ["faster_whisper", "faster_whisper.*", "pandas", "pandas.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra --strict-markers -m 'not integration'"
+addopts = "-ra --strict-markers -m 'not integration and not models'"
 markers = [
     "integration: needs running docker compose services (run via `make test-all`)",
+    "models: loads real TTS/STT model files from data/cache (run via `make test-all`)",
 ]

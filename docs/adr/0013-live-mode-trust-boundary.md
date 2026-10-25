@@ -78,3 +78,11 @@ anywhere.
 - This environment cannot reach Twilio, R2 or the tunnel service. Live mode is
   exercised here against the mock and the fake R2. The real call runs on the owner's
   computer (docs/live-demo.md).
+
+## Update (2026-10-25, Phase 12)
+- The owner approved Phase 11 with the real call deferred. Live mode has been exercised
+  only against the Twilio mock and the fake R2. The recording for the README is pending.
+- In the Claude comparison, local callback answers took about 10 s at p50 on this
+  environment's CPU (7 s when this ADR was written), which is closer to Twilio's ~15 s
+  inbound timeout. Claude answered in about 2 s.
+- The Twilio auth token passes through n8n's execution history (see ADR 0007, update).

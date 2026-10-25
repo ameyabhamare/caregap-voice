@@ -35,3 +35,11 @@ an optional quality comparison, and pronunciation of names must be measurable, n
 - Splicing IPA phonemizes text in chunks, which can change prosody slightly at the joins.
 - Outreach scripts never contain drug names (compliance forbids them), so medication
   overrides matter for Phase 7 callback answers, not for outreach.
+
+## Update (2026-10-25, Phase 12)
+- Paid TTS was not added in Phase 11 (owner-approved default). OpenAI and ElevenLabs
+  remain refusing stubs, with no price in the pricing table, so they fail closed.
+- Audio for live calls goes through short-lived presigned R2 URLs (ADR 0013). The local
+  default still serves it from `data/audio/` through the core service.
+- Spanish round-trip WER is still unmeasured: `small.en` is English-only, and a
+  multilingual Whisper model (about 480 MB) did not fit the disk budget.

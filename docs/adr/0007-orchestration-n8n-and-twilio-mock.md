@@ -70,3 +70,16 @@ behind a local Twilio mock by default, and a real Twilio trial only in Phase 11.
   minute; `make run-campaign` triggers the webhooks to go faster.
 - Upgrading n8n past 1.121 needs an activation path that creates version history (n8n's
   public API with an API key). Revisit when the CLI supports it.
+
+## Update (2026-10-25, Phase 12)
+- The Twilio credential did not move into an n8n credential in Phase 11. The core service
+  still returns the Basic auth header with each call request, so in live mode the real
+  Twilio auth token is stored in n8n's execution history (SQLite in the private `n8ndata`
+  volume). n8n stays private (ADR 0013), but anyone with access to the n8n editor or that
+  volume can read the token. Before any shared deployment: move it into an n8n
+  credential, or prune execution data, and rotate the token after demos
+  (docs/RUNBOOK.md).
+- The Twilio mock still only "presses" 9 (opt out) or 0 (ask for a person). Horizon opts
+  out with 8, so `make run-campaign CUSTOMER=horizon` never exercises its opt-out. A
+  per-customer opt-out digit is covered by the integration tests (a test customer that
+  uses 7).

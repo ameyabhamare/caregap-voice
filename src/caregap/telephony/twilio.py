@@ -51,10 +51,11 @@ def to_e164(phone: str | None) -> str | None:
 
 @dataclass(frozen=True)
 class CallRequest:
-    """A create-call request, in the form n8n posts it to Twilio."""
+    """A create-call request, in the form n8n posts it to Twilio. n8n adds the account's
+    Basic auth from its own credential store (``make n8n-import``), so the auth token never
+    appears in a request or in n8n's execution history."""
 
     url: str
-    authorization: str
     form: dict[str, str]
 
 
@@ -62,7 +63,6 @@ def call_request(
     *,
     api_base_url: str,
     account_sid: str,
-    auth_token: str,
     to: str,
     from_: str,
     twiml_url: str,
@@ -81,7 +81,6 @@ def call_request(
         form["Record"] = "true"
     return CallRequest(
         url=f"{api_base_url.rstrip('/')}/2010-04-01/Accounts/{account_sid}/Calls.json",
-        authorization=basic_auth(account_sid, auth_token),
         form=form,
     )
 

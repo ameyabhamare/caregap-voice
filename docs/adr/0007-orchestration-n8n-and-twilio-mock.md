@@ -72,13 +72,17 @@ behind a local Twilio mock by default, and a real Twilio trial only in Phase 11.
   public API with an API key). Revisit when the CLI supports it.
 
 ## Update (2026-10-25, Phase 12)
-- The Twilio credential did not move into an n8n credential in Phase 11. The core service
-  still returns the Basic auth header with each call request, so in live mode the real
-  Twilio auth token is stored in n8n's execution history (SQLite in the private `n8ndata`
-  volume). n8n stays private (ADR 0013), but anyone with access to the n8n editor or that
-  volume can read the token. Before any shared deployment: move it into an n8n
-  credential, or prune execution data, and rotate the token after demos
-  (docs/RUNBOOK.md).
+- The Twilio credential did not move into an n8n credential in Phase 11: the core service
+  returned the Basic auth header with each call request, so n8n's execution history held
+  the auth token.
+- **Fixed after Phase 12.** The core service now returns the call request without auth.
+  `make n8n-import` loads the account SID and auth token from the core service's settings
+  into an n8n credential (`caregap.telephony.n8n_credential`, HTTP Basic auth, stored
+  encrypted by n8n), and the "Place call (Twilio)" node signs with it. Execution data no
+  longer contains the token (checked on a mock campaign: 0 of 80 executions). A test
+  keeps any `Authorization` value out of the workflows. `make live-up` and
+  `make run-campaign` re-import it, so n8n follows `.env`. Executions recorded before
+  this change still hold the token they were given; clear them once (docs/RUNBOOK.md).
 - The Twilio mock still only "presses" 9 (opt out) or 0 (ask for a person). Horizon opts
   out with 8, so `make run-campaign CUSTOMER=horizon` never exercises its opt-out. A
   per-customer opt-out digit is covered by the integration tests (a test customer that

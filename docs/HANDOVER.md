@@ -24,9 +24,9 @@ else, read, in order:
   computer.
 - Phase 12 (docs and hand-off) was approved on 2026-10-25: every phase in the brief is
   done. Open: the owner's live call and demo recording (README "Demo recording:
-  pending"). Possible follow-ups, only if the owner asks: move the Twilio token into an
-  n8n credential (ADR 0007 update); stop local `make eval-ci` from overwriting
-  `reports/`.
+  pending"). Both follow-ups the owner approved are done: the Twilio token is an
+  encrypted n8n credential (ADR 0007 update), and `make eval-ci` writes to
+  `data/ci-reports/` instead of the committed `reports/`.
 - State of this container after the Phase 12 acceptance run: the volumes were wiped and
   re-seeded from a fresh clone in /tmp/claude-0/accept/caregap-voice (same content digest
   as before, so this repo's `data/export` still matches). MLflow has the prompts but no

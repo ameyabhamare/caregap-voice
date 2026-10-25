@@ -148,6 +148,9 @@ docs/results/         Claude vs local comparison (`make eval-compare`)
   webhook to `POST /telephony/events`; signatures are checked against URLs rebuilt from
   settings. In live mode only that webhook is public (edge filter); never expose n8n,
   core, MLflow or Postgres, and never call a number outside `LIVE_ALLOWED_NUMBERS`.
+- n8n signs Twilio requests with its own encrypted credential (`make n8n-import`, from
+  settings). Never put credentials in core responses or workflow data: n8n stores both in
+  its execution history (a test checks the workflows).
 - n8n is pinned to 1.121.3: later versions cannot activate CLI-imported workflows (ADR 0007).
 - New drug or plan names go in `voice/pronunciations.yaml` and `fixtures/voice/name_sentences.yaml`
   (a test keeps them in sync and checks IPA symbols against Kokoro's vocabulary).

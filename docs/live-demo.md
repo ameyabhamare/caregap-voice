@@ -62,10 +62,13 @@ R2_SECRET_ACCESS_KEY=...
 make live-up
 ```
 
-This does three things:
+This does four things:
 - starts the edge filter and the tunnel;
 - writes `LIVE_WEBHOOK_URL` (the tunnel's webhook URL) to `.env`;
-- restarts the core service.
+- restarts the core service;
+- loads your Twilio Account SID and Auth Token into n8n as an encrypted credential
+  (`make n8n-import`). n8n signs the call with it, so the token never appears in n8n's
+  execution history.
 
 If a setting is missing, the core service will not start; `docker compose logs core`
 names the missing setting. The tunnel URL changes on every `make live-up`.

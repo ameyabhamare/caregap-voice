@@ -90,17 +90,20 @@ service. Commands run through `make` pick up `.env` themselves.
 | Secret | Where to rotate | Then |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | Anthropic Console -> API Keys: create, update `.env`, delete the old key | `docker compose up -d core` |
-| `TWILIO_AUTH_TOKEN` | Twilio Console -> Account -> API keys & tokens: promote the secondary token | update `.env`, `docker compose up -d core`, then clear n8n's execution history (below) |
+| `TWILIO_AUTH_TOKEN` | Twilio Console -> Account -> API keys & tokens: promote the secondary token | update `.env`, `docker compose up -d core`, then `make n8n-import` (n8n's copy of the credential) |
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | Cloudflare -> R2 -> Manage API tokens: new token for the one bucket, delete the old one | update `.env`, `docker compose up -d core` |
 | `DATABRICKS_TOKEN` | Databricks -> Settings -> Developer -> Access tokens | update `.env` (or your CLI profile) |
 | Postgres password | change it in Postgres and in `POSTGRES_PASSWORD` / `DATABASE_URL` | `make down && make up` |
 
-**The Twilio token is also in n8n's execution history.** The core service hands n8n the
-call request with its auth header, so every live execution stores the token
-([ADR 0007](adr/0007-orchestration-n8n-and-twilio-mock.md)). After a live demo, or after
-rotating the token, delete past executions in the n8n UI (http://localhost:5678 ->
-Executions -> select all -> Delete; the first visit asks you to create a local owner
-account).
+**n8n keeps its own copy of the Twilio credential** (encrypted, "CareGap: Twilio
+account"), loaded from `.env` by `make n8n-import`; `make run-campaign` and `make live-up`
+run it too. Keep it in step with the core service after any Twilio change, or calls fail
+with 401 ([ADR 0007](adr/0007-orchestration-n8n-and-twilio-mock.md)).
+
+**Upgrading from a version before this change:** older n8n executions hold the auth token
+they were sent. Delete them once in the n8n UI (http://localhost:5678 -> Executions ->
+select all -> Delete; the first visit asks you to create a local owner account), then
+rotate the Twilio token if those executions were from live calls.
 
 Never paste a key into a chat, an issue or a commit. If one leaks, delete it at the
 provider first, then rotate.
@@ -121,6 +124,7 @@ follow one member: `make trace-member CAMPAIGN=<id> MEMBER=<member_id>`.
 | Core service won't start | a customer config fails validation, or live mode is half-configured | `docker compose logs core`; `make validate-config` |
 | Callback answers are all hand-offs | benefits not ingested, or embedding model missing | `make pull-model`, `make ingest-benefits` |
 | Slow scripts or answers (over 30 s) | Ollama on CPU, or two campaigns at once | expected on CPU (~10 s each); one campaign at a time |
+| Every call fails to dispatch (HTTP 401 from Twilio or the mock) | n8n's Twilio credential differs from `.env` | `make n8n-import` |
 | Live call: Twilio says "application error" | stale tunnel URL (a new `make live-up`), so signatures fail | rerun `make live-up` and update the Twilio number's webhook |
 | `make seed` fails partway | HAPI not healthy yet, or disk full | `make ps`; free disk; `make reset-fhir` and rerun |
 

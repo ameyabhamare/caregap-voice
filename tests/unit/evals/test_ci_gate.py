@@ -39,9 +39,8 @@ def test_cases_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     assert members.member("m-1") == m
 
 
-def test_reports_per_customer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(ci, "REPORTS", tmp_path)
-    ci.write_reports(METRICS, {"sunrise": SUNRISE}, source="test",
+def test_reports_per_customer(tmp_path: Path) -> None:
+    ci.write_reports(METRICS, {"sunrise": SUNRISE}, source="test", out=tmp_path,
                      extra={"sunrise": {"Script word error rate": 0.023}})  # fmt: skip
     data = json.loads((tmp_path / "sunrise.json").read_text())
     assert data["scripts"]["sunrise"]["final_pass_rate"] == 0.68

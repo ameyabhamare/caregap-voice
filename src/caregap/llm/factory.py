@@ -28,7 +28,7 @@ def build_provider(settings: Settings) -> LLMProvider:
 
 def _live_provider(settings: Settings) -> LLMProvider:
     if settings.llm_provider == "claude":
-        if settings.anthropic_api_key is None:
+        if settings.anthropic_api_key is None or not settings.anthropic_api_key.get_secret_value():
             raise RuntimeError("LLM_PROVIDER=claude needs ANTHROPIC_API_KEY")
         return ClaudeProvider(
             settings.claude_model,

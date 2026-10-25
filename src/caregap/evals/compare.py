@@ -156,7 +156,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     local = get_settings()
-    if local.anthropic_api_key is None:
+    if local.anthropic_api_key is None or not local.anthropic_api_key.get_secret_value():
         raise SystemExit("[compare] ANTHROPIC_API_KEY is not set (environment settings or .env)")
     remote = local.model_copy(update={"llm_provider": "claude", "claude_model": args.model})
     claude = build_client(remote)

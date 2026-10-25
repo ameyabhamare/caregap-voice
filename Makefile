@@ -134,7 +134,7 @@ record-fixtures: ## Record every model response CI replays, thresholds and repor
 eval-compare: ## Claude (MODEL, default claude-sonnet-5-5) vs local on the same evals; costs money, capped
 	$(UV) python -m caregap.evals.compare --model $${MODEL:-claude-sonnet-5-5} $(COMPARE_ARGS)
 
-eval-ci: ## CI eval gate: replay recorded fixtures, check thresholds, write reports/
+eval-ci: ## CI eval gate: replay recorded fixtures, check thresholds, write data/ci-reports/
 	$(UV) python -m caregap.evals.ci check
 
 label-judge: ## Label the judge calibration scripts (owner; resumable)

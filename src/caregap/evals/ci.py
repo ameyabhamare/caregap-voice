@@ -1,7 +1,7 @@
 """Fixture-based eval gate for CI, and the per-customer eval report.
 
     make record-fixtures     # dev time, live models: record everything CI will replay
-    make eval-ci             # CI: replay, check thresholds, write reports/
+    make eval-ci             # CI: replay, check thresholds, write data/ci-reports/
 
 ``record`` samples the suite's members from the database, saves them to
 ``fixtures/ci/cases/``, and runs the script suite (rules + judge + reading level) and the
@@ -14,7 +14,9 @@ member database, no MLflow, no model) and fails if any gated metric is below its
 threshold. A missing recording means the requests changed (a prompt, a member, the code
 that builds requests): re-record and review the new numbers.
 
-Both write ``reports/<customer>.md`` and ``.json``.
+Both write ``<customer>.md`` and ``.json`` reports: ``record`` into ``reports/`` (committed,
+with the voice metrics), ``check`` into ``data/ci-reports/`` (gitignored; CI uploads it),
+so a local check never overwrites the committed reports.
 """
 
 from __future__ import annotations
@@ -42,6 +44,7 @@ FIXTURES = Path("fixtures/ci")
 CASES = FIXTURES / "cases"
 THRESHOLDS = FIXTURES / "thresholds.json"
 REPORTS = Path("reports")
+CHECK_REPORTS = Path("data/ci-reports")
 MARGIN = 0.05
 
 
@@ -183,9 +186,9 @@ _RAG_ROWS = (
 
 def write_reports(
     metrics: Mapping[str, Mapping[str, float]], customers: Mapping[str, CustomerConfig],
-    *, source: str, extra: Mapping[str, Mapping[str, float]] | None = None,
+    *, source: str, out: Path, extra: Mapping[str, Mapping[str, float]] | None = None,
 ) -> None:  # fmt: skip
-    REPORTS.mkdir(exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
     for cid, cfg in customers.items():
         scripts = {
             name: v
@@ -196,7 +199,7 @@ def write_reports(
         data = {"customer": cid, "plan": cfg.plan_name, "source": source,
                 "scripts": scripts, "callback_qa": callback,
                 **({"voice": extra[cid]} if extra and cid in extra else {})}  # fmt: skip
-        (REPORTS / f"{cid}.json").write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+        (out / f"{cid}.json").write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
         lines = [f"# Eval report: {cfg.plan_name}", "", f"Source: {source}.", ""]
         if scripts:
             names = list(scripts)
@@ -217,7 +220,7 @@ def write_reports(
             lines += ["## Voice round trip", "", "| Metric | Value |", "|---|---|"]
             lines += [f"| {k} | {v:.1%} |" for k, v in sorted(extra[cid].items())]
             lines.append("")
-        (REPORTS / f"{cid}.md").write_text("\n".join(lines))
+        (out / f"{cid}.md").write_text("\n".join(lines))
 
 
 CONFIGS_BY_NAME = {c.name: c.customer for c in CONFIGS}
@@ -260,11 +263,11 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps(metrics, indent=2, sort_keys=True) + "\n")  # fmt: skip
         THRESHOLDS.write_text(json.dumps(derive_thresholds(metrics), indent=2) + "\n")
         write_reports(metrics, customers, source="recorded fixtures (replayed)",
-                      extra=_voice_metrics(settings))  # fmt: skip
+                      out=REPORTS, extra=_voice_metrics(settings))  # fmt: skip
         print(f"[eval-ci] recorded fixtures and thresholds in {FIXTURES}")
         return 0
     metrics = run_all(settings, customers, live_cases=False)
-    write_reports(metrics, customers, source="CI replay of recorded fixtures")
+    write_reports(metrics, customers, source="CI replay of recorded fixtures", out=CHECK_REPORTS)
     failures = check(metrics, json.loads(THRESHOLDS.read_text()))
     for f in failures:
         print(f"[eval-ci] FAIL {f}")

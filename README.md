@@ -8,7 +8,7 @@ questions from plan benefit documents.
 > **All data is synthetic.** Members are generated with [Synthea](https://synthetichealth.github.io/synthea/).
 > There is no real PHI anywhere in this repository, its fixtures, or its demo recordings.
 
-**Status:** Phase 4 (voice). See [PROGRESS.md](PROGRESS.md).
+**Status:** all 12 phases built. See [PROGRESS.md](PROGRESS.md) and the [results](#results).
 
 ## Design goals
 
@@ -21,28 +21,40 @@ questions from plan benefit documents.
 
 ## Quick start
 
-Requires Docker with Compose v2, [uv](https://docs.astral.sh/uv/), GNU make, and Java 17+
-(for the PySpark pipeline and its tests).
+Requires Docker with Compose v2, [uv](https://docs.astral.sh/uv/), GNU make, Java 17+
+(for the PySpark pipeline) and about 30 GB of free disk (images about 15 GB, data about
+9 GB). The first run downloads images and models and takes about 45 minutes, most of it
+`make seed`.
 
 ```bash
-make install      # Python deps + pre-commit hooks
-make up           # start Postgres+pgvector, MLflow, Ollama, HAPI FHIR; waits until healthy
-make seed         # ~2,000 synthetic members + 23 edge cases -> HAPI FHIR -> NDJSON export
-make pipeline     # bronze/silver/gold + care-gap detection with local PySpark
-make sync-gaps    # load members and care gaps into Postgres
-make pull-model   # qwen2.5:3b for Ollama (~2 GB)
-make prompts-register   # register prompts/*.yaml in MLflow
-make serve        # core service on the host (dev; compose also runs it as `core`)
-make eval-rules   # compliance eval on 100 members, logged to MLflow
-make eval-voice   # TTS -> STT round trip: WER, drug/plan name accuracy with/without overrides
-make run-campaign # 20-member campaign end to end: n8n -> core service -> Twilio mock
-make validate-config  # check customers/*.yaml
-make ingest-benefits  # embed each plan's Summary of Benefits into pgvector
-make eval-rag CUSTOMER=sunrise  # callback Q&A hallucination report (MLflow)
-make eval         # script suite (rules + judge + reading level); ALIAS=candidate to iterate
-make eval-ci      # the CI eval gate: replay recorded fixtures, check thresholds
-make check        # lint, typecheck, unit tests
+git clone https://github.com/ameyabhamare/caregap-voice.git && cd caregap-voice
+make install            # Python deps + pre-commit hooks (first run builds PySpark: a few minutes)
+make up                 # creates .env from .env.example; starts every service, waits until healthy
+make seed               # ~2,000 synthetic members + 23 edge cases -> HAPI FHIR -> NDJSON (~20 min)
+make pipeline           # bronze/silver/gold + care-gap detection with local PySpark
+make sync-gaps          # members and care gaps into Postgres
+make pull-model         # qwen2.5:3b + nomic-embed-text into Ollama (~2.3 GB)
+make prompts-register   # prompts/*.yaml -> MLflow prompt registry ("production")
+make ingest-benefits    # each plan's Summary of Benefits -> pgvector
+make run-campaign       # 20-member campaign end to end: n8n -> core service -> Twilio mock
+```
+
+`make run-campaign` prints each member's outcome (about 10-15 minutes on CPU). Then try
+`make dashboard` (http://localhost:8501) or `make run-campaign CUSTOMER=horizon`.
+Everything runs locally at $0. Running it for a plan (adding customers, rotating keys,
+failures, rollbacks) is in [docs/RUNBOOK.md](docs/RUNBOOK.md).
+
+More commands (`make help` lists all):
+
+```bash
+make check        # lint, typecheck, unit tests (CI runs these plus integration and the eval gate)
 make test-all     # adds integration tests against the running stack
+make eval         # script eval suite (rules + judge + reading level), logged to MLflow
+make eval-rag CUSTOMER=sunrise  # callback Q&A hallucination report
+make eval-voice   # TTS -> STT round trip: WER, drug/plan name accuracy
+make eval-ci      # the CI eval gate: replay recorded fixtures, check thresholds
+make validate-config  # check customers/*.yaml
+make serve        # core service on the host (dev; compose also runs it as `core`)
 ```
 
 | Service    | URL                          |
@@ -56,6 +68,8 @@ make test-all     # adds integration tests against the running stack
 | Twilio mock | http://localhost:8100 (`/mock/calls` lists calls) |
 
 HAPI FHIR takes about a minute to become healthy on first start.
+
+## How it works
 
 ### Synthetic members
 
@@ -123,8 +137,9 @@ selected -> skipped (deceased / no consent / revoked / bad phone)
          -> no answer / busy / failed -> retry (max 3 calls) -> failed + alert
 ```
 
-Two runs of 20 members each (qwen2.5:3b, Kokoro, mock telephony; about 11 minutes each,
-dominated by local generation):
+Two runs of 20 members each at Phase 5, with outreach prompt v1 (qwen2.5:3b, Kokoro,
+mock telephony; about 11 minutes each, dominated by local generation). The run with the
+current prompt is in [Results](#results).
 
 | | Default mock outcomes | `--cover-outcomes` (every call path) |
 |---|---|---|
@@ -167,7 +182,8 @@ make eval-rules N=100 CUSTOMER=horizon
 make eval-rules N=30 CUSTOMER=sunrise LANGUAGE=es
 ```
 
-Rule-based compliance (qwen2.5:3b, `make eval-rules`):
+Rule-based compliance at Phase 6, with outreach prompt v1 (qwen2.5:3b, `make eval-rules`;
+current numbers in [Results](#results)):
 
 | Customer (sample) | First attempt | Final (after one revision) |
 |---|---|---|
@@ -288,22 +304,95 @@ Guards:
 
 See [ADR 0013](docs/adr/0013-live-mode-trust-boundary.md).
 
-> Upgrading from Phase 0: HAPI moved from H2 to Postgres. Run `make nuke && make up` once
-> so Postgres creates the `hapi` database.
-
 ## Architecture
 
-```
-Synthea -> HAPI FHIR -> bulk export (NDJSON)
-        -> Databricks Free Edition (bronze/silver/gold, gap detection) -> local Postgres
-Postgres (members, gaps, consent, outreach state, audit, cost ledger, pgvector)
-Core service (FastAPI + MCP): script generation, compliance, TTS, RAG Q&A
-n8n: orchestration only. MLflow: prompts, evals, traces.
+```mermaid
+flowchart LR
+  subgraph data["Batch data"]
+    SY[Synthea] --> HAPI[HAPI FHIR] -->|bulk export NDJSON| PL["PySpark medallion + gap detection<br/>(local, or Databricks serverless)"]
+  end
+  PL -->|gold snapshot| PG[("Postgres + pgvector<br/>members, gaps, consent, campaigns,<br/>audit log, cost ledger, benefit chunks")]
+  subgraph core["Core service (FastAPI): every rule"]
+    GEN[Script generation] --> CMP[Compliance rules] --> TTS[Kokoro TTS]
+    RAG[Callback Q&A] --> GRD[Grounding check]
+  end
+  PG <--> core
+  core -->|metered by the cost ledger| LLM["LLM: Ollama (default)<br/>or Claude (capped)"]
+  N8N["n8n: schedules and routes only"] -->|HTTP| core
+  N8N --> TW["Twilio mock (default)<br/>or Twilio + R2 (live mode)"]
+  TW -->|signed callbacks| N8N
+  MCP["MCP server (stdio)"] -->|HTTP| core
+  CD[Claude Desktop] --> MCP
+  core -->|traces, prompts, evals| MLF[MLflow]
+  DASH[Streamlit dashboard] --> PG
 ```
 
-Design decisions are recorded in [docs/adr](docs/adr).
+- **Batch data**: Synthea members are loaded into HAPI FHIR and bulk-exported. One
+  PySpark codebase runs locally (default) or as a Databricks serverless job and writes a
+  gold snapshot that `make sync-gaps` loads into Postgres.
+- **Core service**: every decision (consent, call window, approval, retries, compliance,
+  grounding) lives here. n8n and the MCP server are thin layers over its HTTP API.
+- **Cost**: every model call goes through the cost ledger. Local calls are $0; paid
+  calls stop at `LLM_BUDGET_USD`.
+
+Design decisions are recorded in [docs/adr](docs/adr):
+[local-first cost](docs/adr/0002-local-first-cost-design.md),
+[synthetic data](docs/adr/0003-synthetic-data-pipeline.md),
+[Databricks for batch data](docs/adr/0004-gap-detection-pipeline.md),
+[generation and compliance](docs/adr/0005-generation-and-compliance.md),
+[TTS](docs/adr/0006-tts-strategy.md),
+[n8n for orchestration only](docs/adr/0007-orchestration-n8n-and-twilio-mock.md),
+[customer configs](docs/adr/0008-customer-configs.md),
+[RAG and grounding](docs/adr/0009-callback-rag-and-grounding.md),
+[evals and CI](docs/adr/0010-evals-judge-and-ci-gate.md),
+[MCP](docs/adr/0011-mcp-integration-surface.md),
+[observability](docs/adr/0012-observability-and-audit.md),
+[Twilio/R2 trust boundary](docs/adr/0013-live-mode-trust-boundary.md),
+[PHI handling](docs/adr/0014-phi-handling.md).
 
 ## Results
+
+All numbers are on synthetic members with the local stack (qwen2.5:3b, nomic-embed-text,
+Kokoro, Whisper small.en) unless marked Claude. Generation is not deterministic, so
+reruns vary by a few points.
+
+### Outreach scripts (`make eval`, production prompts, 2026-10-25)
+
+| | Sunrise (100) | Sunrise Spanish (20) | Horizon (72) |
+|---|---|---|---|
+| Compliant on the first attempt | 89% | 100% | 75% |
+| Compliant after one revision | 98% | 100% | 100% |
+| Reading grade 8 or below | 100% | n/a | 100% |
+| Judge (local, not trusted): all criteria pass | 92% | 35% | 33% |
+
+Scripts that still fail go to a person, never to a call. Prompt history: v3 (no health
+claims) raised mean final compliance from 89.3% to 99.7% when promoted; this rebuild
+measured 99.3%.
+
+### Callback questions (`make eval-rag`, 2026-10-25)
+
+| | Sunrise (48) | Horizon (40) |
+|---|---|---|
+| Answerable questions answered correctly | 78.8% | 66.7% |
+| Medical, member and off-topic questions handed off | 100% | 100% |
+| Answerable but handed off (over-refusal) | 21.2% | 30.0% |
+| Spoken answers with a wrong amount or another plan's facts | 0% | 0% |
+
+### Voice (`make eval-voice`, Phase 4)
+Script word error rate 2.3% (100 scripts). Drug names transcribed exactly: 54.5% without
+the pronunciation overrides, 88.6% with them. Plan names: 100%.
+
+### Campaign (`make run-campaign`)
+Filled in by the Phase 12 acceptance run (a fresh clone following this README).
+
+### CI eval gate
+CI replays model responses recorded at dev time and fails if script compliance drops
+below 94-95% per configuration, if any spoken callback answer is ungrounded, or if
+refusal accuracy drops below 95% ([reports/](reports)).
+
+### Demo recording
+Pending: the real call to the owner's phone has not been made yet
+([docs/live-demo.md](docs/live-demo.md)).
 
 ### Claude vs the local model (`make eval-compare`, 2026-10-25)
 
@@ -331,5 +420,35 @@ How to read it:
 
 ## Limitations
 
-- The live call (Twilio, R2, tunnel) has been tested against the Twilio mock and a fake
-  R2 only. A real call has not been made yet (docs/live-demo.md).
+Honest list, roughly by how much it matters:
+
+- **Not ready for real PHI.** No authentication on any service (they bind to
+  localhost), no encryption at rest, no BAAs, no retention rules. What real data would
+  need is in [ADR 0014](docs/adr/0014-phi-handling.md).
+- **Live mode is untested against real services.** Twilio, R2 and the tunnel have only
+  been exercised against the Twilio mock and a fake R2.
+- **The Twilio auth token is stored in n8n's execution history** in live mode, because
+  the core service hands n8n the full call request. n8n is private, but clear its
+  executions after a demo ([RUNBOOK](docs/RUNBOOK.md#3-rotate-keys)).
+- **The LLM judge is not trusted.** Against the owner's 50 labels no criterion reaches
+  kappa 0.4. It fails most Spanish and Horizon scripts the rules pass, so it is reported
+  but gates nothing.
+- **Grounding checks amounts, not meaning.** A wrong statement without a number (for
+  example "no referral needed") passes. A manual review at Phase 7 found 2 such errors
+  in 49 spoken answers.
+- **The local model over-refuses** 21-30% of answerable callback questions. Claude
+  removes that (0%) at about $0.003 per answer.
+- **Spanish**: round-trip WER is not measured (Whisper small.en is English-only), and
+  at Phase 6 most Spanish scripts used informal "tú" although the prompt asks for
+  "usted". The rules do not check register.
+- **Horizon scripts are near-duplicates** (about 5 distinct texts for 72 members): no
+  name in its prompt and a fixed seed.
+- **Gap detection is simplified.** Three measures, written from the definitions in
+  `fixtures/edge_cases/members.yaml`, not certified HEDIS logic. Statin fills are
+  simulated, because Synthea has none.
+- **The Twilio mock only presses 9 or 0**, so Horizon's opt-out digit (8) is covered by
+  tests, not by the mock.
+- **Speed**: on CPU a script takes 10-14 s and a callback answer about 10 s, which is
+  close to Twilio's ~15 s inbound timeout.
+- **Synthetic consent and membership.** Consent is generated (90% granted) and plan
+  membership is assigned by age.

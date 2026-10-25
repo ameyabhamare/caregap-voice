@@ -17,17 +17,15 @@ else, read, in order:
 4. `docs/adr/` 0001-0010, especially 0010 (judge, prompt iteration, CI gate).
 
 ## Where things stand
-- Phases 0-10 are approved. Phase 11 (live demo mode) is built and its report is posted
-  (2026-10-24). The Claude comparison ran on 2026-10-25 (sonnet-5-5, $0.94 of the $5
-  cap; docs/results/claude-vs-local.md, README Results). The owner deferred the real
-  call to later on their own computer; it is not needed for approval. Waiting on
-  "approved".
+- Phases 0-11 are approved (Phase 11 on 2026-10-25). The Claude comparison ran on
+  2026-10-25 (sonnet-5-5, $0.94 of the $5 cap; docs/results/claude-vs-local.md, README
+  Results). The owner deferred the real call and its recording to later, on their own
+  computer.
+- Next: Phase 12 (docs and hand-off). Its plan is posted; wait for "go".
 - The ledger has $0.94 of paid spend recorded; a fresh Postgres volume resets it, so
-  the cap is per volume. Never ask for an API key in chat.
-- After "approved": mark Phase 11 approved in PROGRESS.md and this file, then post the
-  Phase 12 plan (docs and hand-off: ADRs listed in BRIEF.md, a customer-facing RUNBOOK,
-  README with results and honest limitations; acceptance: a fresh clone runs
-  `make up && make seed && make run-campaign` following only the README).
+  the cap is per volume. Never ask for an API key in chat. This container's `.env` holds
+  a key the owner pasted on 2026-10-25 and was advised to revoke; if Claude calls fail
+  with 401, it has been revoked (expected).
 - Judge calibration: no criterion reaches kappa 0.4, so `judge.TRUSTED_CRITERIA` is empty.
   Never pre-fill, guess or suggest judge labels.
 

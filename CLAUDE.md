@@ -37,7 +37,9 @@ src/caregap/          Python package
   outreach/           per-language profile view, compliance rules (EN+ES), generator, store
   api/app.py          FastAPI core service (`make serve`, or the `core` compose service)
   campaign/           campaign state machine, consent, call window, clock, run-campaign driver
-  telephony/          Twilio wire format (signatures, TwiML) and the local Twilio mock
+  telephony/          Twilio wire format (signatures, TwiML), the local Twilio mock (+ fake
+                      R2), inbound callback calls, the live tunnel's edge filter
+  live.py             live demo mode checks (fail closed); storage/r2.py signed R2 URLs
   rag/                benefits documents (md -> PDF -> sections), pgvector chunks + retriever,
                       callback agent with grounding check, callback service
   members.py          what an agent may see/do for a member (MCP tools' rules)
@@ -98,6 +100,9 @@ docs/adr/             architecture decision records
   `make mcp` runs it on stdio. `make db-schema` applies schema changes to an old volume.
 - `make dashboard` (http://localhost:8501); `make trace-member CAMPAIGN=.. MEMBER=..` prints
   a member's audit timeline.
+- Live demo (optional spend; docs/live-demo.md, run on the owner's computer): `make live-up`,
+  `make live-call`, `make live-recording CAMPAIGN=..`, `make live-down`.
+  `make eval-compare [MODEL=..]` (Claude vs local; costs money, precheck + budget cap).
 - `make pipeline` (local PySpark) then `make sync-gaps`. `make pipeline-databricks` runs the
   job on Databricks serverless and syncs its output instead.
 
@@ -137,6 +142,10 @@ docs/adr/             architecture decision records
 - Governed changes write an `audit.record` event with the same connection, in the same
   transaction. Audit payloads hold IDs and outcomes, not free text. New core operations
   get a root `observability.span(..., root=True, tags=...)`; deeper code uses child spans.
+- Every Twilio request (TwiML fetch, keypress, status, inbound) goes through the one n8n
+  webhook to `POST /telephony/events`; signatures are checked against URLs rebuilt from
+  settings. In live mode only that webhook is public (edge filter); never expose n8n,
+  core, MLflow or Postgres, and never call a number outside `LIVE_ALLOWED_NUMBERS`.
 - n8n is pinned to 1.121.3: later versions cannot activate CLI-imported workflows (ADR 0007).
 - New drug or plan names go in `voice/pronunciations.yaml` and `fixtures/voice/name_sentences.yaml`
   (a test keeps them in sync and checks IPA symbols against Kokoro's vocabulary).

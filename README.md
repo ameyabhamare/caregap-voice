@@ -269,6 +269,25 @@ in [docs/mcp.md](docs/mcp.md); the design is in [ADR 0011](docs/adr/0011-mcp-int
 
 See [ADR 0012](docs/adr/0012-observability-and-audit.md).
 
+### Live demo mode (optional)
+
+Off by default; the stack stays local at $0. With a Twilio trial and an R2 bucket,
+[docs/live-demo.md](docs/live-demo.md) walks through one real call to your verified phone:
+- `make live-up` starts the tunnel;
+- `make live-call` asks you to approve the script, then calls;
+- `make live-recording` saves the recording.
+
+It also covers inbound callback calls (ask a benefits question by voice) and the
+cost-capped Claude-vs-local comparison (`make eval-compare`).
+
+Guards:
+- One public route: the tunnel reaches only an edge filter for Twilio's webhook.
+- Audio is served through short-lived signed R2 URLs.
+- Calls go only to allowlisted numbers, and only up to a call cap.
+- The core service refuses to start half-configured.
+
+See [ADR 0013](docs/adr/0013-live-mode-trust-boundary.md).
+
 > Upgrading from Phase 0: HAPI moved from H2 to Postgres. Run `make nuke && make up` once
 > so Postgres creates the `hapi` database.
 

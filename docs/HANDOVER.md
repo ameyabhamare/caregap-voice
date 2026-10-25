@@ -17,14 +17,34 @@ else, read, in order:
 4. `docs/adr/` 0001-0010, especially 0010 (judge, prompt iteration, CI gate).
 
 ## Where things stand
-- Phases 0-10 are approved (Phase 10 on 2026-10-24).
-- **Next action**: post the Phase 11 plan (live demo mode, optional spend: Cloudflare Tunnel, R2 audio with signed
-  URLs and a 24h lifecycle, a real Twilio trial to verified numbers, a final Claude eval
-  within the budget cap, inbound callback calls deferred from Phase 7 - check BRIEF.md).
-  Every paid service there needs the owner's explicit yes; never ask for tokens in chat.
-- Judge calibration: no criterion reaches kappa 0.4, so `judge.TRUSTED_CRITERIA` is empty
-  and judge metrics block neither CI nor prompt promotion (details in PROGRESS.md).
+- Phases 0-10 are approved. Phase 11 (live demo mode) is built and its report is posted
+  (2026-10-24). Waiting on the owner for: the real call on their computer
+  (docs/live-demo.md), an ANTHROPIC_API_KEY for `make eval-compare` (environment
+  settings here, or their .env), and "approved".
+- If the owner adds ANTHROPIC_API_KEY to this environment: run
+  `make eval-compare COMPARE_ARGS=--precheck-only`, report the projection, then the full
+  run (Sonnet, about $3, under the $5 cap); commit docs/results/claude-vs-local.md and
+  add the numbers to the README. Never ask for the key in chat.
+- After "approved": mark Phase 11 approved in PROGRESS.md and this file, then post the
+  Phase 12 plan (docs and hand-off: ADRs listed in BRIEF.md, a customer-facing RUNBOOK,
+  README with results and honest limitations; acceptance: a fresh clone runs
+  `make up && make seed && make run-campaign` following only the README).
+- Judge calibration: no criterion reaches kappa 0.4, so `judge.TRUSTED_CRITERIA` is empty.
   Never pre-fill, guess or suggest judge labels.
+
+## Phase 11 facts worth knowing
+- This environment reaches api.anthropic.com but not Twilio, R2 or trycloudflare.com.
+- `caregap.live.problems()` fails startup in live mode; `LiveConfig` in the campaign
+  service enforces demo number, cap (advisory lock) and one-member campaigns
+  (`campaigns.live`). `callback_url(attempt, event)`: event status | gather | twiml.
+- `caregap.telephony.inbound.InboundCalls`: event inbound | inbound-speech, query
+  customer + turn (signed). Greeting/qa_more in customers/*.yaml must name the callback
+  digit (validated).
+- Fake R2 lives in the Twilio mock at /r2/...; to try it locally export AUDIO_STORE=r2,
+  R2_ENDPOINT=http://twilio-mock:8100/r2, R2_BUCKET, R2_ACCESS_KEY_ID,
+  R2_SECRET_ACCESS_KEY before `docker compose up -d core twilio-mock` (don't edit .env).
+- The core image was rebuilt with Phase 11 code on 2026-10-24. Disk is tight: prune
+  dangling images and builder cache after each rebuild.
 
 ## Phase 10 facts worth knowing
 - `caregap.observability`: root spans only where `root=True` (prepare, create_script,

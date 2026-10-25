@@ -15,7 +15,7 @@
 | 8 | LLM-as-a-Judge, prompt iteration, CI gate | Approved |
 | 9 | MCP server | Approved |
 | 10 | Observability + governance | Approved |
-| 11 | Live demo mode (optional spend) | Not started |
+| 11 | Live demo mode (optional spend) | Built, report posted |
 | 12 | Docs and handoff | Not started |
 
 ## Phase 0: Scaffold
@@ -147,8 +147,24 @@
       retry -> DTMF 0 -> escalation; MLflow traces linked; dashboard renders every tab
 - [x] Phase report posted, approved (2026-10-24)
 
+## Phase 11: Live demo mode (optional spend)
+- [x] R2 presigned URLs (SigV4, AWS example vector), fake R2 in the Twilio mock
+- [x] TwiML through the n8n webhook; audio through R2; recording on live calls
+- [x] Live guards: fail-closed startup, allowlist + demo number, one-member campaigns,
+      LIVE_MAX_CALLS, owner approves the script in `make live-call`
+- [x] n8n uploads audio to the signed URL before placing the call (checked end to end
+      with the fake R2: answered call played 22.6 s from it)
+- [x] Inbound callback calls (speech -> grounded agent -> <Say>, press 0, 3 turns)
+- [x] Edge filter + cloudflared 2026.10.0 quick tunnel (profile `live`), live CLI
+- [x] `make eval-compare` (precheck, local judge, no promotion)
+- [x] ADR 0013, docs/live-demo.md, README, CLAUDE.md
+- [ ] Owner: real call to the verified number, recording for the README
+- [ ] Owner: ANTHROPIC_API_KEY, then `make eval-compare` (run here or on their computer)
+- [ ] Approved
+
 ## Resume here (hand-off between sessions)
-Status: Phases 0-10 approved. Next: post the Phase 11 plan (live demo mode) and wait for "go".
+Status: Phases 0-10 approved; Phase 11 built, report posted; waiting on the owner's live
+call, the Claude comparison (needs ANTHROPIC_API_KEY) and "approved".
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`,
@@ -241,6 +257,11 @@ Environment quirks seen in the cloud container:
 | 2026-10-24 | Per-message "eval scores" = rule results + reading grade; no live judge | The judge is uncalibrated and would double model calls. Approved default. |
 | 2026-10-24 | Streamlit 1.65.0, own dependency group, runs on the host | Owner-approved dependency; no new container, not in the core image. |
 | 2026-10-24 | Audit times from the database clock; tests never trace | The demo campaign clock is shifted; `make` exports .env (tracing on), so tests force it off. |
+| 2026-10-24 | Live call runs on the owner's computer; this environment cannot reach Twilio, R2 or the tunnel | Built and tested here against the mock and a fake R2. ADR 0013. |
+| 2026-10-24 | Claude comparison: claude-sonnet-5-5, full sets, local judge; no paid TTS; R2; minimal inbound calls | Owner accepted the defaults ("go"). |
+| 2026-10-24 | Own SigV4 presigning instead of boto3 | ~60 lines, verified against AWS's example; no new dependency. |
+| 2026-10-24 | Tunnel publishes an edge filter, not n8n | A quick tunnel exposes its whole origin; the n8n editor must stay private. |
+| 2026-10-24 | TwiML fetched through the n8n webhook | Keeps the core service private; one public route for every Twilio request. |
 | 2026-10-22 | HAPI default (distroless) image, using its bundled `HealthCheck` probe | The `-tomcat` variant cannot unpack its WAR as non-root and took more than 14 min without ever becoming healthy; the default image is healthy in about 35 s. |
 
 ## Open questions

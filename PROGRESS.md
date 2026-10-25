@@ -170,13 +170,15 @@
 - [x] docs/RUNBOOK.md: deploy, add a customer, rotate keys, failures, prompt rollback
 - [x] README: first-run quick start, results, Claude comparison, limitations
 - [x] `make pull-model` also pulls nomic-embed-text
-- [ ] Acceptance: fresh clone, `make up && make seed && make run-campaign` from the README
+- [x] Acceptance 2026-10-25: fresh clone + empty volumes, README steps; campaign 15/20
+      completed. Container-only workarounds: Docker Hub mirror, build CA, models fetched on
+      the host (containers cannot verify the proxy's CA)
 - [ ] Demo recording (waits on the owner's live call)
 - [ ] Approved
 
 ## Resume here (hand-off between sessions)
 Status: Phases 0-11 approved (Phase 11 on 2026-10-25, live call deferred by the owner).
-Phase 12 in progress (docs done; acceptance run pending).
+Phase 12 built, report posted; waiting on "approved".
 New sessions: start from docs/HANDOVER.md. If a new session
 starts, rebuild local state first (the container is ephemeral): start dockerd if needed,
 `make up`, `make seed`, `make pipeline`, `make sync-gaps`, `make prompts-register`,

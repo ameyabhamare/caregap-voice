@@ -383,7 +383,18 @@ Script word error rate 2.3% (100 scripts). Drug names transcribed exactly: 54.5%
 the pronunciation overrides, 88.6% with them. Plan names: 100%.
 
 ### Campaign (`make run-campaign`)
-Filled in by the Phase 12 acceptance run (a fresh clone following this README).
+From a fresh clone following this README (2026-10-25; Sunrise, 20 members, mock
+telephony, about 11 minutes):
+
+| | Count |
+|---|---|
+| Skipped at selection | 2 (1 consent revoked, 1 unknown consent) |
+| Scripts held for a person | 5, all first-N approvals; none failed compliance |
+| Calls placed | 28 (17 completed, 9 no answer and retried, 2 failed) |
+| Final | 15 completed, 1 opted out, 1 escalated (pressed 0), 1 failed after 3 calls |
+| Escalations delivered | 2 (1 call-back request, 1 not reached) |
+
+At Phase 5, with prompt v1, 11 of 20 scripts failed compliance and waited on a person.
 
 ### CI eval gate
 CI replays model responses recorded at dev time and fails if script compliance drops

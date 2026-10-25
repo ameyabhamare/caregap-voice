@@ -22,7 +22,14 @@ else, read, in order:
   2026-10-25 (sonnet-5-5, $0.94 of the $5 cap; docs/results/claude-vs-local.md, README
   Results). The owner deferred the real call and its recording to later, on their own
   computer.
-- Next: Phase 12 (docs and hand-off). Its plan is posted; wait for "go".
+- Phase 12 (docs and hand-off) is built and its report is posted (2026-10-25); waiting
+  on "approved". Open after that: the owner's live call and demo recording (README
+  "Demo recording: pending").
+- State of this container after the Phase 12 acceptance run: the volumes were wiped and
+  re-seeded from a fresh clone in /tmp/claude-0/accept/caregap-voice (same content digest
+  as before, so this repo's `data/export` still matches). MLflow has the prompts but no
+  eval runs; re-run `make eval` before any prompt work. Kokoro model files were fetched
+  on the host into `data/cache/kokoro` (containers cannot download them here).
 - The ledger has $0.94 of paid spend recorded; a fresh Postgres volume resets it, so
   the cap is per volume. Never ask for an API key in chat. This container's `.env` holds
   a key the owner pasted on 2026-10-25 and was advised to revoke; if Claude calls fail
